@@ -5,17 +5,29 @@ pragma solidity ^0.8.17;
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 
+interface LlamaSubFactory {
+    function owner() external view returns (address);
+
+    function token() external view returns (address);
+
+    function start() external view returns (uint256);
+
+    function period() external view returns (uint256);
+
+    function tiers() external view returns (uint128[] memory);
+}
+
 error INVALID_TIER();
 error ALREADY_SUBBED();
 error NOT_SUBBED();
+error NOT_OWNER();
 
-contract LlamaSubsFlatRateERC20 {
+contract LlamaSubsFlatRate {
     using SafeTransferLib for ERC20;
 
     struct Tier {
         uint128 costPerPeriod;
         uint128 amountOfSubs;
-        mapping(uint256 => uint256) subsToExpire;
     }
 
     struct User {
@@ -30,6 +42,7 @@ contract LlamaSubsFlatRateERC20 {
     uint256 public claimable;
     Tier[] public tiers;
     mapping(address => User) public users;
+    mapping(uint256 => mapping(uint256 => uint256)) public subsToExpire;
 
     event Subscribe(
         address indexed subscriber,
@@ -44,6 +57,23 @@ contract LlamaSubsFlatRateERC20 {
         uint256 periods,
         uint256 newExpiry
     );
+    event Claim(uint256 amount);
+
+    constructor() {
+        owner = LlamaSubFactory(msg.sender).owner();
+        token = LlamaSubFactory(msg.sender).token();
+        currentPeriod = LlamaSubFactory(msg.sender).start();
+        period = LlamaSubFactory(msg.sender).period();
+        uint128[] memory tierList = LlamaSubFactory(msg.sender).tiers();
+        uint256 len = tierList.length;
+        uint256 i = 0;
+        while (i < len) {
+            tiers[i].costPerPeriod = tierList[i];
+            unchecked {
+                i++;
+            }
+        }
+    }
 
     function subscribe(uint256 _tier, uint256 _periods) external {
         if (_tier >= tiers.length) revert INVALID_TIER();
@@ -54,7 +84,7 @@ contract LlamaSubsFlatRateERC20 {
         unchecked {
             expires = currentPeriod + (period * _periods);
             tiers[_tier].amountOfSubs++;
-            tiers[_tier].subsToExpire[expires]++;
+            subsToExpire[_tier][expires]++;
         }
         users[msg.sender].tier = uint128(_tier);
         users[msg.sender].expires = uint128(expires);
@@ -85,7 +115,7 @@ contract LlamaSubsFlatRateERC20 {
             unchecked {
                 tiers[user.tier].amountOfSubs--;
                 /// Have to update subsToExpire so owner wont be underpaid on update
-                tiers[user.tier].subsToExpire[user.expires]--;
+                subsToExpire[user.tier][user.expires]--;
             }
         }
         /// Free up storage and allows user to resub
@@ -101,9 +131,9 @@ contract LlamaSubsFlatRateERC20 {
         uint256 newExpiry;
         unchecked {
             newExpiry = uint256(user.expires) + _periods * period;
-            tiers[user.tier].subsToExpire[newExpiry]++;
+            subsToExpire[user.tier][newExpiry]++;
             if (user.expires > currentPeriod) {
-                tiers[user.tier].subsToExpire[user.expires]--;
+                subsToExpire[user.tier][user.expires]--;
             }
         }
         ERC20(token).safeTransferFrom(
@@ -112,6 +142,15 @@ contract LlamaSubsFlatRateERC20 {
             _periods * uint256(tiers[user.tier].costPerPeriod)
         );
         emit Extend(msg.sender, _periods, newExpiry);
+    }
+
+    function claim() external {
+        if (msg.sender != owner) revert NOT_OWNER();
+        _update();
+        uint256 toOwner = claimable;
+        claimable = 0;
+        ERC20(token).safeTransfer(owner, toOwner);
+        emit Claim(toOwner);
     }
 
     function _update() private {
@@ -141,13 +180,13 @@ contract LlamaSubsFlatRateERC20 {
                 unchecked {
                     /// Subtract amountOfSubs by expiring subs of current period
                     /// This will get the actual amount that are subscribed
-                    newAmountOfSubs[j] -= tier.subsToExpire[newCurrentPeriod];
+                    newAmountOfSubs[j] -= subsToExpire[j][newCurrentPeriod];
                 }
                 newClaimable +=
                     newAmountOfSubs[j] *
                     uint256(tier.costPerPeriod);
                 /// Free up storage
-                delete tiers[j].subsToExpire[newCurrentPeriod];
+                delete subsToExpire[j][newCurrentPeriod];
                 unchecked {
                     j++;
                 }
