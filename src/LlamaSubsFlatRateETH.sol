@@ -2,16 +2,15 @@
 
 pragma solidity ^0.8.17;
 
-import {ERC20} from "solmate/tokens/ERC20.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 
 error INVALID_TIER();
 error ALREADY_SUBBED();
 error NOT_SUBBED();
 error NOT_OWNER();
+error INVALID_VALUE();
 
-contract LlamaSubsFlatRateERC20 {
-    using SafeTransferLib for ERC20;
+contract LlamaSubsFlatRateETH {
 
     struct Tier {
         uint128 costPerPeriod;
@@ -24,8 +23,7 @@ contract LlamaSubsFlatRateERC20 {
         uint40 expires;
     }
 
-    address public owner;
-    address public token;
+    address payable public owner;
     uint256 public currentPeriod;
     uint256 public periodDuration;
     uint256 public claimable;
@@ -54,13 +52,11 @@ contract LlamaSubsFlatRateERC20 {
     event RemoveTier(uint256 tierNumber);
 
     constructor(
-        address _owner,
-        address _token,
+        address payable _owner,
         uint256 _currentPeriod,
         uint256 _periodDuration
     ) {
         owner = _owner;
-        token = _token;
         currentPeriod = _currentPeriod;
         periodDuration = _periodDuration;
     }
@@ -70,27 +66,23 @@ contract LlamaSubsFlatRateERC20 {
         _;
     }
 
-    function subscribe(uint256 _tier, uint256 _durations) external {
+    function subscribe(uint256 _tier, uint256 _durations) external payable {
         Tier storage tier = tiers[_tier];
         if (tier.disabledAt > 0 || tier.costPerPeriod == 0)
             revert INVALID_TIER();
         if (users[msg.sender].expires > 0) revert ALREADY_SUBBED();
         _update();
 
+        uint256 sendToContract = _durations * uint256(tier.costPerPeriod);
+        if (msg.value != sendToContract) revert INVALID_VALUE();
         uint256 expires;
         unchecked {
             expires = currentPeriod + (_durations * periodDuration);
             tiers[_tier].amountOfSubs++;
             subsToExpire[_tier][expires]++;
         }
-        uint256 sendToContract = _durations * uint256(tier.costPerPeriod);
         users[msg.sender].tier = uint216(_tier);
         users[msg.sender].expires = uint40(expires);
-        ERC20(token).safeTransferFrom(
-            msg.sender,
-            address(this),
-            sendToContract
-        );
         emit Subscribe(msg.sender, _tier, _durations, expires, sendToContract);
     }
 
@@ -125,17 +117,19 @@ contract LlamaSubsFlatRateERC20 {
         }
         /// Free up storage and allows user to resub
         delete users[msg.sender];
-        ERC20(token).safeTransfer(msg.sender, refund);
+        SafeTransferLib.safeTransferETH(msg.sender, refund);
         emit Unsubscribe(msg.sender, refund);
     }
 
-    function extend(uint256 _durations) external {
+    function extend(uint256 _durations) external payable {
         User storage user = users[msg.sender];
         if (user.expires == 0) revert NOT_SUBBED();
         Tier storage tier = tiers[user.tier];
         if (tier.disabledAt > 0) revert INVALID_TIER();
         _update();
 
+        uint256 sendToContract = _durations * uint256(tier.costPerPeriod);
+        if (msg.value != sendToContract) revert INVALID_VALUE();
         uint256 newExpiry;
         unchecked {
             newExpiry = uint256(user.expires) + (_durations * periodDuration);
@@ -145,12 +139,6 @@ contract LlamaSubsFlatRateERC20 {
                 subsToExpire[user.tier][user.expires]--;
             }
         }
-        uint256 sendToContract = _durations * uint256(tier.costPerPeriod);
-        ERC20(token).safeTransferFrom(
-            msg.sender,
-            address(this),
-            sendToContract
-        );
         emit Extend(msg.sender, _durations, newExpiry, sendToContract);
     }
 
@@ -158,7 +146,7 @@ contract LlamaSubsFlatRateERC20 {
         _update();
         uint256 toOwner = claimable;
         claimable = 0;
-        ERC20(token).safeTransfer(owner, toOwner);
+        SafeTransferLib.safeTransferETH(owner, toOwner);
         emit Claim(toOwner);
     }
 
