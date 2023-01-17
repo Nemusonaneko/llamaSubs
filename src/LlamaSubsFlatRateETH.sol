@@ -11,7 +11,6 @@ error NOT_OWNER();
 error INVALID_VALUE();
 
 contract LlamaSubsFlatRateETH {
-
     struct Tier {
         uint128 costPerPeriod;
         uint88 amountOfSubs;
@@ -72,17 +71,30 @@ contract LlamaSubsFlatRateETH {
             revert INVALID_TIER();
         if (users[msg.sender].expires > 0) revert ALREADY_SUBBED();
         _update();
-
-        uint256 sendToContract = _durations * uint256(tier.costPerPeriod);
-        if (msg.value != sendToContract) revert INVALID_VALUE();
         uint256 expires;
+        uint256 nextPeriod;
+        uint256 actualDurations;
+        uint256 claimableThisPeriod;
         unchecked {
-            expires = currentPeriod + (_durations * periodDuration);
+            nextPeriod = currentPeriod + periodDuration;
+            claimableThisPeriod =
+                (tier.costPerPeriod * block.timestamp) /
+                nextPeriod;
+            actualDurations = _durations - 1;
+            expires = currentPeriod + (actualDurations * periodDuration);
+        }
+        uint256 sendToContract = claimableThisPeriod +
+            (actualDurations * uint256(tier.costPerPeriod));
+        if (msg.value != sendToContract) revert INVALID_VALUE();
+        claimable += claimableThisPeriod;
+        unchecked {
             tiers[_tier].amountOfSubs++;
             subsToExpire[_tier][expires]++;
         }
-        users[msg.sender].tier = uint216(_tier);
-        users[msg.sender].expires = uint40(expires);
+        users[msg.sender] = User({
+            tier: uint216(_tier),
+            expires: uint40(expires)
+        });
         emit Subscribe(msg.sender, _tier, _durations, expires, sendToContract);
     }
 
@@ -92,30 +104,24 @@ contract LlamaSubsFlatRateETH {
         _update();
 
         Tier storage tier = tiers[user.tier];
-        uint256 nextPeriod;
         uint256 refund;
+        uint256 nextPeriod;
         unchecked {
             nextPeriod = currentPeriod + periodDuration;
-            /// If disabled and disabled before user expiry
             if (tier.disabledAt > 0 && user.expires > tier.disabledAt) {
                 refund =
                     ((uint256(user.expires) - uint256(tier.disabledAt)) *
                         uint256(tier.costPerPeriod)) /
                     periodDuration;
-            }
-            /// If not already expired, then refund excess to user
-            else if (user.expires > nextPeriod) {
+            } else if (user.expires > nextPeriod) {
                 refund =
                     ((uint256(user.expires) - nextPeriod) *
                         uint256(tier.costPerPeriod)) /
                     periodDuration;
-                /// Have to update subsToExpire so owner wont be underpaid on update
                 subsToExpire[user.tier][user.expires]--;
-                /// +1 to the next period
-                subsToExpire[user.tier][nextPeriod]++;
+                tiers[user.tier].amountOfSubs--;
             }
         }
-        /// Free up storage and allows user to resub
         delete users[msg.sender];
         SafeTransferLib.safeTransferETH(msg.sender, refund);
         emit Unsubscribe(msg.sender, refund);
@@ -128,13 +134,28 @@ contract LlamaSubsFlatRateETH {
         if (tier.disabledAt > 0) revert INVALID_TIER();
         _update();
 
-        uint256 sendToContract = _durations * uint256(tier.costPerPeriod);
-        if (msg.value != sendToContract) revert INVALID_VALUE();
         uint256 newExpiry;
+        uint256 nextPeriod;
+        uint256 actualDurations;
+        uint256 claimableThisPeriod;
         unchecked {
-            newExpiry = uint256(user.expires) + (_durations * periodDuration);
+            nextPeriod = currentPeriod + periodDuration;
+            actualDurations = _durations - 1;
+            newExpiry =
+                uint256(user.expires) +
+                (actualDurations * periodDuration);
+            if (nextPeriod > user.expires) {
+                claimableThisPeriod =
+                    (tier.costPerPeriod * block.timestamp) /
+                    nextPeriod;
+            }
+        }
+        uint256 sendToContract = claimableThisPeriod +
+            (actualDurations * uint256(tier.costPerPeriod));
+        if (msg.value != sendToContract) revert INVALID_VALUE();
+        claimable += claimableThisPeriod;
+        unchecked {
             subsToExpire[user.tier][newExpiry]++;
-            /// Prevent underflow since storage is freed as currentPeriod is updated
             if (user.expires > currentPeriod) {
                 subsToExpire[user.tier][user.expires]--;
             }
