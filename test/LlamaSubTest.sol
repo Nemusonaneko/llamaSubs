@@ -63,7 +63,7 @@ contract LlamaSubTest is Test {
 
     function testSub() external {
         vm.startPrank(alice);
-        llamasub.subscribe(0, 3);
+        llamasub.subscribe(address(alice), 0, 3);
         vm.stopPrank();
         (uint216 tier, uint40 expires) = llamasub.users(alice);
         assertEq(tier, 0);

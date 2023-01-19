@@ -43,12 +43,6 @@ contract LlamaSubsFlatRateERC20 {
         uint256 sent
     );
     event Unsubscribe(address indexed subscriber, uint256 refund);
-    event Extend(
-        address indexed subscriber,
-        uint256 durations,
-        uint256 newExpiry,
-        uint256 sendToContract
-    );
     event Claim(uint256 amount);
     event AddTier(uint256 tierNumber, uint128 costPerPeriod);
     event RemoveTier(uint256 tierNumber);
@@ -70,41 +64,50 @@ contract LlamaSubsFlatRateERC20 {
         _;
     }
 
-    function subscribe(uint256 _tier, uint256 _durations) external {
+    function subscribe(
+        address subscriber,
+        uint256 _tier,
+        uint256 _durations
+    ) external {
         Tier storage tier = tiers[_tier];
         if (tier.disabledAt > 0 || tier.costPerPeriod == 0)
             revert INVALID_TIER();
-        if (users[msg.sender].expires > 0) revert ALREADY_SUBBED();
         _update();
 
+        User storage user = users[subscriber];
         uint256 expires;
         uint256 nextPeriod;
         uint256 actualDurations;
         uint256 claimableThisPeriod;
         unchecked {
             nextPeriod = currentPeriod + periodDuration;
-            claimableThisPeriod =
-                (tier.costPerPeriod * block.timestamp) /
-                nextPeriod;
             actualDurations = _durations - 1;
-            expires = currentPeriod + (actualDurations * periodDuration);
-            tiers[_tier].amountOfSubs++;
-            subsToExpire[_tier][expires]++;
+            expires =
+                uint256(user.expires) +
+                (actualDurations * periodDuration);
+            if (user.expires > currentPeriod) {
+                subsToExpire[user.tier][user.expires]--;
+            }
+            if (nextPeriod > user.expires) {
+                claimableThisPeriod =
+                    (tier.costPerPeriod * block.timestamp) /
+                    nextPeriod;
+            }
+            subsToExpire[user.tier][expires]++;
         }
-        users[msg.sender] = User({
-            tier: uint216(_tier),
-            expires: uint40(expires)
-        });
-
         uint256 sendToContract = claimableThisPeriod +
             (actualDurations * uint256(tier.costPerPeriod));
         claimable += claimableThisPeriod;
+        users[subscriber] = User({
+            tier: uint216(_tier),
+            expires: uint40(expires)
+        });
         ERC20(token).safeTransferFrom(
             msg.sender,
             address(this),
             sendToContract
         );
-        emit Subscribe(msg.sender, _tier, _durations, expires, sendToContract);
+        emit Subscribe(subscriber, _tier, _durations, expires, sendToContract);
     }
 
     function unsubscribe() external {
@@ -136,45 +139,7 @@ contract LlamaSubsFlatRateERC20 {
         emit Unsubscribe(msg.sender, refund);
     }
 
-    function extend(uint256 _durations) external {
-        User storage user = users[msg.sender];
-        if (user.expires == 0) revert NOT_SUBBED();
-        Tier storage tier = tiers[user.tier];
-        if (tier.disabledAt > 0) revert INVALID_TIER();
-        _update();
-
-        uint256 newExpiry;
-        uint256 nextPeriod;
-        uint256 actualDurations;
-        uint256 claimableThisPeriod;
-        unchecked {
-            nextPeriod = currentPeriod + periodDuration;
-            actualDurations = _durations - 1;
-            newExpiry =
-                uint256(user.expires) +
-                (actualDurations * periodDuration);
-            subsToExpire[user.tier][newExpiry]++;
-            if (user.expires > currentPeriod) {
-                subsToExpire[user.tier][user.expires]--;
-            }
-            if (nextPeriod > user.expires) {
-                claimableThisPeriod =
-                    (tier.costPerPeriod * block.timestamp) /
-                    nextPeriod;
-            }
-        }
-        uint256 sendToContract = claimableThisPeriod +
-            (actualDurations * uint256(tier.costPerPeriod));
-        claimable += claimableThisPeriod;
-        ERC20(token).safeTransferFrom(
-            msg.sender,
-            address(this),
-            sendToContract
-        );
-        emit Extend(msg.sender, _durations, newExpiry, sendToContract);
-    }
-
-    function claim() external onlyOwner {
+    function claim() external {
         _update();
         uint256 toOwner = claimable;
         claimable = 0;
