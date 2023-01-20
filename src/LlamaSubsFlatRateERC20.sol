@@ -9,6 +9,7 @@ error INVALID_TIER();
 error ALREADY_SUBBED();
 error NOT_SUBBED();
 error NOT_OWNER();
+error NOT_OWNER_OR_WHITELISTED();
 
 contract LlamaSubsFlatRateERC20 {
     using SafeTransferLib for ERC20;
@@ -34,6 +35,7 @@ contract LlamaSubsFlatRateERC20 {
     mapping(uint256 => Tier) public tiers;
     mapping(uint256 => mapping(uint256 => uint256)) public subsToExpire;
     mapping(address => User) public users;
+    mapping(address => uint256) public whitelist;
 
     event Subscribe(
         address indexed subscriber,
@@ -43,9 +45,11 @@ contract LlamaSubsFlatRateERC20 {
         uint256 sent
     );
     event Unsubscribe(address indexed subscriber, uint256 refund);
-    event Claim(uint256 amount);
+    event Claim(address caller, address to, uint256 amount);
     event AddTier(uint256 tierNumber, uint128 costPerPeriod);
     event RemoveTier(uint256 tierNumber);
+    event AddWhitelist(address toAdd);
+    event RemoveWhitelist(address toRemove);
 
     constructor(
         address _owner,
@@ -140,11 +144,13 @@ contract LlamaSubsFlatRateERC20 {
     }
 
     function claim() external {
+        if (msg.sender != owner && whitelist[msg.sender] != 1)
+            revert NOT_OWNER_OR_WHITELISTED();
         _update();
         uint256 toOwner = claimable;
         claimable = 0;
         ERC20(token).safeTransfer(owner, toOwner);
-        emit Claim(toOwner);
+        emit Claim(msg.sender, owner, toOwner);
     }
 
     function addTier(uint128 _costPerPeriod) external onlyOwner {
@@ -180,6 +186,16 @@ contract LlamaSubsFlatRateERC20 {
         activeTiers[i] = last;
         activeTiers.pop();
         emit RemoveTier(_tier);
+    }
+
+    function addWhitelist(address _toAdd) external onlyOwner {
+        whitelist[_toAdd] = 1;
+        emit AddWhitelist(_toAdd);
+    }
+
+    function removeWhitelist(address _toRemove) external onlyOwner {
+        whitelist[_toRemove] = 0;
+        emit RemoveWhitelist(_toRemove);
     }
 
     function _update() private {
