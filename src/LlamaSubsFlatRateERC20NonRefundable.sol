@@ -31,6 +31,18 @@ contract LlamaSubsFlatRateERC20NonRefundable {
     mapping(address => User) public users;
     mapping(address => uint256) public whitelist;
 
+    event Subscribe(
+        address subscriber,
+        uint216 sub,
+        uint40 expires,
+        uint208 cost
+    );
+    event Claim(address caller, address to, uint256 amount);
+    event AddSub(uint256 subNumber, uint208 costOfSub, uint40 duration);
+    event RemoveSub(uint256 subNumber);
+    event AddWhitelist(address toAdd);
+    event RemoveWhitelist(address toRemove);
+
     constructor(address _owner, address _token) {
         owner = _owner;
         token = _token;
@@ -45,15 +57,18 @@ contract LlamaSubsFlatRateERC20NonRefundable {
         Sub storage sub = subs[_sub];
         if (sub.disabled != 0 || sub.costOfSub == 0 || sub.duration == 0)
             revert INVALID_SUB();
-        users[_subscriber] = User({
-            expires: uint40(block.timestamp + sub.duration),
-            sub: _sub
-        });
+        uint40 expires;
+        unchecked {
+            expires = uint40(block.timestamp + sub.duration);
+        }
+        users[_subscriber] = User({expires: expires, sub: _sub});
         ERC20(token).safeTransferFrom(msg.sender, address(this), sub.costOfSub);
+        emit Subscribe(_subscriber, _sub, expires, sub.costOfSub);
     }
 
     function addSub(uint208 _costOfSub, uint40 _duration) external onlyOwner {
-        subs[numOfSubs] = Sub({
+        uint256 oldNumOfSubs = numOfSubs;
+        subs[oldNumOfSubs] = Sub({
             costOfSub: _costOfSub,
             duration: _duration,
             disabled: 0
@@ -61,6 +76,7 @@ contract LlamaSubsFlatRateERC20NonRefundable {
         unchecked {
             ++numOfSubs;
         }
+        emit AddSub(oldNumOfSubs, _costOfSub, _duration);
     }
 
     function removeSub(uint216 _sub) external onlyOwner {
@@ -68,19 +84,23 @@ contract LlamaSubsFlatRateERC20NonRefundable {
         if (sub.disabled != 0 || sub.costOfSub == 0 || sub.duration == 0)
             revert INVALID_SUB();
         subs[_sub].disabled = 1;
+        emit RemoveSub(_sub);
     }
 
     function claim(uint256 _amount) external {
         if (msg.sender != owner && whitelist[msg.sender] != 1)
             revert NOT_OWNER_OR_WHITELISTED();
         ERC20(token).safeTransfer(owner, _amount);
+        emit Claim(msg.sender, owner, _amount);
     }
 
     function addWhitelist(address _toAdd) external onlyOwner {
         whitelist[_toAdd] = 1;
+        emit AddWhitelist(_toAdd);
     }
 
     function removeWhitelist(address _toRemove) external onlyOwner {
         whitelist[_toRemove] = 0;
+        emit RemoveWhitelist(_toRemove);
     }
 }

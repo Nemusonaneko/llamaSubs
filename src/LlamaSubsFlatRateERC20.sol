@@ -25,8 +25,8 @@ contract LlamaSubsFlatRateERC20 {
         uint40 expires;
     }
 
-    address public owner;
-    address public token;
+    address public immutable owner;
+    address public immutable token;
     uint256 public currentPeriod;
     uint256 public periodDuration;
     uint256 public claimable;
