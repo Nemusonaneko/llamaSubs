@@ -7,6 +7,7 @@ import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 
 error INVALID_SUB();
 error NOT_OWNER();
+error NOT_OWNER_OR_WHITELISTED();
 
 contract LlamaSubsFlatRateERC20NonRefundable {
     using SafeTransferLib for ERC20;
@@ -28,6 +29,7 @@ contract LlamaSubsFlatRateERC20NonRefundable {
 
     mapping(uint256 => Sub) public subs;
     mapping(address => User) public users;
+    mapping(address => uint256) public whitelist;
 
     constructor(address _owner, address _token) {
         owner = _owner;
@@ -47,7 +49,7 @@ contract LlamaSubsFlatRateERC20NonRefundable {
             expires: uint40(block.timestamp + sub.duration),
             sub: _sub
         });
-        ERC20(token).safeTransferFrom(msg.sender, owner, sub.costOfSub);
+        ERC20(token).safeTransferFrom(msg.sender, address(this), sub.costOfSub);
     }
 
     function addSub(uint208 _costOfSub, uint40 _duration) external onlyOwner {
@@ -66,5 +68,19 @@ contract LlamaSubsFlatRateERC20NonRefundable {
         if (sub.disabled != 0 || sub.costOfSub == 0 || sub.duration == 0)
             revert INVALID_SUB();
         subs[_sub].disabled = 1;
+    }
+
+    function claim(uint256 _amount) external {
+        if (msg.sender != owner && whitelist[msg.sender] != 1)
+            revert NOT_OWNER_OR_WHITELISTED();
+        ERC20(token).safeTransfer(owner, _amount);
+    }
+
+    function addWhitelist(address _toAdd) external onlyOwner {
+        whitelist[_toAdd] = 1;
+    }
+
+    function removeWhitelist(address _toRemove) external onlyOwner {
+        whitelist[_toRemove] = 0;
     }
 }

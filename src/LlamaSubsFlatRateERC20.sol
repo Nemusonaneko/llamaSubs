@@ -143,14 +143,13 @@ contract LlamaSubsFlatRateERC20 {
         emit Unsubscribe(msg.sender, refund);
     }
 
-    function claim() external {
+    function claim(uint256 _amount) external {
         if (msg.sender != owner && whitelist[msg.sender] != 1)
             revert NOT_OWNER_OR_WHITELISTED();
         _update();
-        uint256 toOwner = claimable;
-        claimable = 0;
-        ERC20(token).safeTransfer(owner, toOwner);
-        emit Claim(msg.sender, owner, toOwner);
+        claimable -= _amount;
+        ERC20(token).safeTransfer(owner, _amount);
+        emit Claim(msg.sender, owner, _amount);
     }
 
     function addTier(uint128 _costPerPeriod) external onlyOwner {

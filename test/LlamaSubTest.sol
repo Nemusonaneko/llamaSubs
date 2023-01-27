@@ -73,6 +73,6 @@ contract LlamaSubTest is Test {
     function testClaim() external {
         vm.warp(86400 * 4);
         vm.prank(alice);
-        llamasub.claim();
+        llamasub.claim(100000);
     }
 }
