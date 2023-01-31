@@ -69,7 +69,7 @@ contract LlamaSubsFlatRateERC20 {
     }
 
     function subscribe(
-        address subscriber,
+        address _subscriber,
         uint256 _tier,
         uint256 _durations
     ) external {
@@ -78,7 +78,7 @@ contract LlamaSubsFlatRateERC20 {
             revert INVALID_TIER();
         _update();
 
-        User storage user = users[subscriber];
+        User storage user = users[_subscriber];
         uint256 expires;
         uint256 nextPeriod;
         uint256 actualDurations;
@@ -102,7 +102,7 @@ contract LlamaSubsFlatRateERC20 {
         uint256 sendToContract = claimableThisPeriod +
             (actualDurations * uint256(tier.costPerPeriod));
         claimable += claimableThisPeriod;
-        users[subscriber] = User({
+        users[_subscriber] = User({
             tier: uint216(_tier),
             expires: uint40(expires)
         });
@@ -111,7 +111,7 @@ contract LlamaSubsFlatRateERC20 {
             address(this),
             sendToContract
         );
-        emit Subscribe(subscriber, _tier, _durations, expires, sendToContract);
+        emit Subscribe(_subscriber, _tier, _durations, expires, sendToContract);
     }
 
     function unsubscribe() external {
