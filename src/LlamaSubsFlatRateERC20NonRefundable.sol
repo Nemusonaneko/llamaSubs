@@ -29,7 +29,7 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155 {
     address public owner;
     address public immutable token;
     uint256 public numOfSubs;
-    uint256 constant fee = 2;
+    uint256 constant fee = 1;
     address constant feeCollector = 0x08a3c2A819E3de7ACa384c798269B3Ce1CD0e437;
 
     mapping(uint256 => Sub) public subs;
