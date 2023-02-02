@@ -68,6 +68,10 @@ contract LlamaSubsFlatRateERC20 {
         _;
     }
 
+    function max(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a > b ? a : b;
+    }
+
     function subscribe(
         address _subscriber,
         uint256 _tier,
@@ -80,22 +84,20 @@ contract LlamaSubsFlatRateERC20 {
 
         User storage user = users[_subscriber];
         uint256 expires;
-        uint256 nextPeriod;
         uint256 actualDurations;
         uint256 claimableThisPeriod;
         unchecked {
-            nextPeriod = currentPeriod + periodDuration;
             actualDurations = _durations - 1;
             expires =
-                uint256(user.expires) +
+                max(uint256(user.expires), currentPeriod) +
                 (actualDurations * periodDuration);
-            if (user.expires > currentPeriod) {
+            if (user.expires >= currentPeriod) {
                 subsToExpire[user.tier][user.expires]--;
             }
-            if (nextPeriod > user.expires) {
+            if (user.expires < currentPeriod) {
                 claimableThisPeriod =
-                    (tier.costPerPeriod * block.timestamp) /
-                    nextPeriod;
+                    (tier.costPerPeriod * (currentPeriod - block.timestamp)) /
+                    periodDuration;
             }
             subsToExpire[user.tier][expires]++;
         }
@@ -106,6 +108,7 @@ contract LlamaSubsFlatRateERC20 {
             tier: uint216(_tier),
             expires: uint40(expires)
         });
+        tier.amountOfSubs++;
         ERC20(token).safeTransferFrom(
             msg.sender,
             address(this),
@@ -123,22 +126,21 @@ contract LlamaSubsFlatRateERC20 {
         uint256 refund;
         uint256 nextPeriod;
         unchecked {
-            nextPeriod = currentPeriod + periodDuration;
             if (tier.disabledAt > 0 && user.expires > tier.disabledAt) {
                 refund =
                     ((uint256(user.expires) - uint256(tier.disabledAt)) *
                         uint256(tier.costPerPeriod)) /
                     periodDuration;
-            } else if (user.expires > nextPeriod) {
+            } else if (user.expires > currentPeriod) {
                 refund =
-                    ((uint256(user.expires) - nextPeriod) *
+                    ((uint256(user.expires) - currentPeriod) *
                         uint256(tier.costPerPeriod)) /
                     periodDuration;
                 subsToExpire[user.tier][user.expires]--;
                 tiers[user.tier].amountOfSubs--;
+                users.expires = currentPeriod;
             }
         }
-        delete users[msg.sender];
         ERC20(token).safeTransfer(msg.sender, refund);
         emit Unsubscribe(msg.sender, refund);
     }
@@ -163,25 +165,15 @@ contract LlamaSubsFlatRateERC20 {
         emit AddTier(tierNumber, _costPerPeriod);
     }
 
-    function removeTier(uint256 _tier) external onlyOwner {
+    function removeTier(uint256 _tierIndex) external onlyOwner {
         _update();
         uint256 len = activeTiers.length;
+        if(_tierIndex >= len){
+            revert();
+        }
+        uint256 _tier = activeTiers[_tierIndex];
         uint256 last = activeTiers[len - 1];
-        uint256 i = 0;
-        while (activeTiers[i] != _tier) {
-            unchecked {
-                i++;
-            }
-        }
-        uint256 nextPeriod;
-        unchecked {
-            nextPeriod = currentPeriod + periodDuration;
-        }
-        claimable +=
-            uint256(tiers[_tier].costPerPeriod) *
-            uint256(tiers[_tier].amountOfSubs);
-
-        tiers[_tier].disabledAt = uint40(nextPeriod);
+        tiers[_tier].disabledAt = uint40(currentPeriod);
         activeTiers[i] = last;
         activeTiers.pop();
         emit RemoveTier(_tier);
@@ -208,14 +200,14 @@ contract LlamaSubsFlatRateERC20 {
             while (i < len) {
                 uint256 curr = activeTiers[i];
                 Tier storage tier = tiers[curr];
-                newClaimable +=
-                    uint256(tier.amountOfSubs) *
-                    uint256(tier.costPerPeriod);
                 unchecked {
-                    tiers[curr].amountOfSubs -= uint88(
+                    tier.amountOfSubs -= uint88(
                         subsToExpire[curr][newCurrentPeriod]
                     );
                 }
+                newClaimable +=
+                    uint256(tier.amountOfSubs) *
+                    uint256(tier.costPerPeriod);
                 /// Free up storage
                 delete subsToExpire[curr][newCurrentPeriod];
                 unchecked {
