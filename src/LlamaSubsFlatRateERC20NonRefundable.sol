@@ -61,7 +61,6 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155 {
         }
     }
 
-
     modifier onlyOwner() {
         if (msg.sender != owner) revert NOT_OWNER();
         _;
@@ -104,7 +103,7 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155 {
         if (sub.disabled != 0 || sub.costOfSub == 0 || sub.duration == 0)
             revert INVALID_SUB();
 
-        uint expires = max(max(newExpires[id], expires), block.timestamp);
+        uint expires = max(max(newExpires[id], originalExpires), block.timestamp);
         unchecked {
             expires = uint40(expires + sub.duration);
         }
@@ -136,7 +135,6 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155 {
     function setAcceptedToken(address token, bool value) external onlyOwner {
         acceptedTokens[token] = value==true?1:0;
     }
-
 
     function claim(uint256 _amount) external {
         if (msg.sender != owner && whitelist[msg.sender] != 1)
