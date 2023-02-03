@@ -109,7 +109,7 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initalizable {
             max(newExpires[_id], originalExpires),
             block.timestamp
         );
-        newExpires[_id] = newExpires;
+        newExpires[_id] = expires + sub.duration;
         ERC20(_token).safeTransferFrom(
             msg.sender,
             address(this),
