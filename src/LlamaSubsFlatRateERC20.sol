@@ -5,6 +5,8 @@ pragma solidity ^0.8.17;
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {ERC1155} from "solmate/tokens/ERC1155.sol";
+import "openzeppelin-contracts/proxy/utils/Initializable.sol";
+import "openzeppelin-contracts/utils/Strings.sol";
 
 error INVALID_TIER();
 error ALREADY_SUBBED();
@@ -14,7 +16,7 @@ error NOT_OWNER_OR_WHITELISTED();
 error CURRENT_PERIOD_IN_FUTURE();
 error WRONG_TIER();
 
-contract LlamaSubsFlatRateERC20 is ERC1155 {
+contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
     using SafeTransferLib for ERC20;
 
     struct Tier {
@@ -28,10 +30,10 @@ contract LlamaSubsFlatRateERC20 is ERC1155 {
         uint40 expires;
     }
 
-    address public immutable owner;
-    address public immutable token;
+    address public owner;
+    address public token;
     uint256 public currentPeriod;
-    uint256 public immutable periodDuration;
+    uint256 public periodDuration;
     uint256 public claimable;
     uint256 public numOfTiers;
     uint256[] public activeTiers;
@@ -54,17 +56,17 @@ contract LlamaSubsFlatRateERC20 is ERC1155 {
     event AddWhitelist(address toAdd);
     event RemoveWhitelist(address toRemove);
 
-    constructor(
+    function initialize(
         address _owner,
         address _token,
         uint256 _currentPeriod,
         uint256 _periodDuration
-    ) {
+    ) public {
         owner = _owner;
         token = _token;
         currentPeriod = _currentPeriod;
         periodDuration = _periodDuration;
-        if(block.timestamp + _periodDuration < _currentPeriod){
+        if (block.timestamp + _periodDuration < _currentPeriod) {
             revert CURRENT_PERIOD_IN_FUTURE();
         }
     }
@@ -74,12 +76,34 @@ contract LlamaSubsFlatRateERC20 is ERC1155 {
         _;
     }
 
-     function getUpdatedCurrentPeriod()
+    function uri(uint256 id)
+        public
+        view
+        virtual
+        override
+        returns (string memory)
+    {
+        return
+            string(
+                abi.encodePacked(
+                    "https://nft.llamapay.com/LlamaSubsFlatRateERC20/",
+                    Strings.toString(block.chainid),
+                    "/",
+                    Strings.toHexString(uint160(address(this)), 20),
+                    "/",
+                    Strings.toString(id)
+                )
+            );
+    }
+
+    function getUpdatedCurrentPeriod()
         public
         view
         returns (uint256 updatedCurrentPeriod)
     {
-        return (block.timestamp + periodDuration) - (currentPeriod % periodDuration);
+        return
+            (block.timestamp + periodDuration) -
+            (currentPeriod % periodDuration);
     }
 
     function max(uint256 a, uint256 b) internal pure returns (uint256) {
@@ -95,7 +119,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155 {
         if (tier.disabledAt > 0 || tier.costPerPeriod == 0)
             revert INVALID_TIER();
 
-        uint updatedCurrentPeriod = getUpdatedCurrentPeriod();
+        uint256 updatedCurrentPeriod = getUpdatedCurrentPeriod();
         User storage user = users[_subscriber];
         uint256 expires;
         uint256 actualDurations;
@@ -110,7 +134,8 @@ contract LlamaSubsFlatRateERC20 is ERC1155 {
             }
             if (user.expires < updatedCurrentPeriod) {
                 claimableThisPeriod =
-                    (tier.costPerPeriod * (updatedCurrentPeriod - block.timestamp)) /
+                    (tier.costPerPeriod *
+                        (updatedCurrentPeriod - block.timestamp)) /
                     periodDuration;
             }
             subsToExpire[user.tier][expires]++;
@@ -137,7 +162,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155 {
 
         Tier storage tier = tiers[user.tier];
         uint256 refund;
-        uint updatedCurrentPeriod = getUpdatedCurrentPeriod();
+        uint256 updatedCurrentPeriod = getUpdatedCurrentPeriod();
         unchecked {
             if (tier.disabledAt > 0 && user.expires > tier.disabledAt) {
                 refund =
@@ -163,8 +188,11 @@ contract LlamaSubsFlatRateERC20 is ERC1155 {
             revert NOT_OWNER_OR_WHITELISTED();
         _update();
         claimable -= _amount;
-        ERC20(token).safeTransfer(owner, (_amount * 99)/100);
-        ERC20(token).safeTransfer(0x08a3c2A819E3de7ACa384c798269B3Ce1CD0e437, _amount/100);
+        ERC20(token).safeTransfer(owner, (_amount * 99) / 100);
+        ERC20(token).safeTransfer(
+            0x08a3c2A819E3de7ACa384c798269B3Ce1CD0e437,
+            _amount / 100
+        );
         emit Claim(msg.sender, owner, _amount);
     }
 
@@ -182,7 +210,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155 {
     function removeTier(uint256 _tierIndex) external onlyOwner {
         _update();
         uint256 len = activeTiers.length;
-        if(_tierIndex >= len){
+        if (_tierIndex >= len) {
             revert WRONG_TIER();
         }
         uint256 _tier = activeTiers[_tierIndex];

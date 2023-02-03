@@ -4,8 +4,14 @@ pragma solidity ^0.8.17;
 
 import {LlamaSubsFlatRateERC20} from "./LlamaSubsFlatRateERC20.sol";
 import {LlamaSubsFlatRateERC20NonRefundable} from "./LlamaSubsFlatRateERC20NonRefundable.sol";
+import "openzeppelin-contracts/proxy/Clones.sol";
 
 contract LlamaSubsFactory {
+    using Clones for address;
+
+    LlamaSubsFlatRateERC20NonRefundable public immutable nonrefundableImpl;
+    LlamaSubsFlatRateERC20 public immutable refundableImpl;
+
     event DeployFlatRateERC20(
         address indexed deployedContract,
         address indexed owner,
@@ -15,43 +21,51 @@ contract LlamaSubsFactory {
     );
     event DeployFlatRateERC20NonRefundable(
         address indexed deployedContract,
-        address indexed owner,
         address indexed token
     );
 
+    constructor(
+        LlamaSubsFlatRateERC20NonRefundable _nonrefundableImpl,
+        LlamaSubsFlatRateERC20 _refundableImpl
+    ) {
+        nonrefundableImpl = _nonrefundableImpl;
+        refundableImpl = _refundableImpl;
+    }
+
     function deployFlatRateERC20(
-        address _owner,
         address _token,
         uint256 _currentPeriod,
         uint256 _periodDuration
     ) external returns (LlamaSubsFlatRateERC20 deployedContract) {
-        deployedContract = new LlamaSubsFlatRateERC20(
-            _owner,
+        deployedContract = LlamaSubsFlatRateERC20(
+            address(refundableImpl).clone()
+        );
+        deployedContract.initialize(
+            msg.sender,
             _token,
             _currentPeriod,
             _periodDuration
         );
         emit DeployFlatRateERC20(
             address(deployedContract),
-            _owner,
+            msg.sender,
             _token,
             _currentPeriod,
             _periodDuration
         );
     }
 
-    function deployFlatRateERC20NonRefundable(address _owner, address _token)
+    function deployFlatRateERC20NonRefundable()
         external
         returns (LlamaSubsFlatRateERC20NonRefundable deployedContract)
     {
-        deployedContract = new LlamaSubsFlatRateERC20NonRefundable(
-            _owner,
-            _token
+        deployedContract = LlamaSubsFlatRateERC20NonRefundable(
+            address(nonrefundableImpl).clone()
         );
+        deployedContract.initialize(msg.sender);
         emit DeployFlatRateERC20NonRefundable(
             address(deployedContract),
-            _owner,
-            _token
+            msg.sender
         );
     }
 }
