@@ -4,6 +4,7 @@ pragma solidity ^0.8.17;
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
+import {ERC1155} from "solmate/tokens/ERC1155.sol";
 
 error INVALID_TIER();
 error ALREADY_SUBBED();
@@ -13,7 +14,7 @@ error NOT_OWNER_OR_WHITELISTED();
 error CURRENT_PERIOD_IN_FUTURE();
 error WRONG_TIER();
 
-contract LlamaSubsFlatRateERC20 {
+contract LlamaSubsFlatRateERC20 is ERC1155 {
     using SafeTransferLib for ERC20;
 
     struct Tier {
@@ -162,7 +163,8 @@ contract LlamaSubsFlatRateERC20 {
             revert NOT_OWNER_OR_WHITELISTED();
         _update();
         claimable -= _amount;
-        ERC20(token).safeTransfer(owner, _amount);
+        ERC20(token).safeTransfer(owner, (_amount * 99)/100);
+        ERC20(token).safeTransfer(0x08a3c2A819E3de7ACa384c798269B3Ce1CD0e437, _amount/100);
         emit Claim(msg.sender, owner, _amount);
     }
 

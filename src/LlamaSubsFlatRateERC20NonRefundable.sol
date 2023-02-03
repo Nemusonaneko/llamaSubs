@@ -25,7 +25,6 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initalizable {
 
     address public owner;
     uint256 public numOfSubs;
-    uint256 constant fee = 1;
     address constant feeCollector = 0x08a3c2A819E3de7ACa384c798269B3Ce1CD0e437;
     
     mapping(uint256 => Sub) public subs;
@@ -149,8 +148,8 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initalizable {
     function claim(address _token, uint256 _amount) external {
         if (msg.sender != owner && whitelist[msg.sender] != 1)
             revert NOT_OWNER_OR_WHITELISTED();
-        ERC20(_token).safeTransfer(owner, (_amount * (100 - fee)) / 100);
-        ERC20(_token).safeTransfer(feeCollector, (_amount * fee) / 100);
+        ERC20(_token).safeTransfer(owner, (_amount * 99) / 100);
+        ERC20(_token).safeTransfer(feeCollector, _amount / 100);
         emit Claim(msg.sender, _token, owner, _amount);
     }
 
