@@ -124,7 +124,6 @@ contract LlamaSubsFlatRateERC20 {
 
         Tier storage tier = tiers[user.tier];
         uint256 refund;
-        uint256 nextPeriod;
         unchecked {
             if (tier.disabledAt > 0 && user.expires > tier.disabledAt) {
                 refund =
@@ -138,7 +137,7 @@ contract LlamaSubsFlatRateERC20 {
                     periodDuration;
                 subsToExpire[user.tier][user.expires]--;
                 tiers[user.tier].amountOfSubs--;
-                user.expires = currentPeriod;
+                user.expires = uint40(currentPeriod);
             }
         }
         ERC20(token).safeTransfer(msg.sender, refund);
