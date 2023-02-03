@@ -69,7 +69,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         address _owner,
         uint256 _currentPeriod,
         uint256 _periodDuration,
-        TierInfo[] tiers
+        TierInfo[] _tiers
     ) public {
         owner = _owner;
         currentPeriod = _currentPeriod;
@@ -78,8 +78,9 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
             revert CURRENT_PERIOD_IN_FUTURE();
         }
         uint i = 0;
-        while(i<tiers.length){
-            addTierInternal(tiers[i].costPerPeriod, tiers[i].token);
+        uint len = _tiers.length;
+        while(i<len){
+            addTierInternal(_tiers[i].costPerPeriod, _tiers[i].token);
             unchecked {
                 i++;
             }
@@ -257,13 +258,19 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         emit AddTier(tierNumber, _costPerPeriod);
     }
 
-    function addTier(uint224 _costPerPeriod, address _token) external onlyOwner {
+    function addTiers(TierInfo[] _tiers) external onlyOwner {
         _update();
-        addTierInternal(_costPerPeriod, _token);
+        uint i = 0;
+        uint len = tiers.length;
+        while(i<len){
+            addTierInternal(_tiers[i].costPerPeriod, _tiers[i].token);
+            unchecked {
+                i++;
+            }
+        }
     }
 
-    function removeTier(uint256 _tierIndex) external onlyOwner {
-        _update();
+    function removeTierInternal(uint256 _tierIndex) internal {
         uint256 len = activeTiers.length;
         if (_tierIndex >= len) {
             revert WRONG_TIER();
@@ -274,6 +281,18 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         activeTiers[_tierIndex] = last;
         activeTiers.pop();
         emit RemoveTier(_tier);
+    }
+
+    function removeTiers(uint256[] _tierIndexs) external onlyOwner {
+        _update();
+        uint i = 0;
+        uint len = _tierIndexs.length;
+        while(i<len){
+            removeTierInternal(_tierIndexs[i]);
+            unchecked {
+                i++;
+            }
+        }
     }
 
     function addWhitelist(address _toAdd) external onlyOwner {
