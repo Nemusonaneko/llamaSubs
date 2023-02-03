@@ -5,8 +5,8 @@ pragma solidity ^0.8.17;
 import {ERC1155} from "solmate/tokens/ERC1155.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
-// import "openzeppelin-contracts-upgradable/contracts/proxy/utils/Initalizable.sol";
-import "openzeppelin-contracts/contracts/utils/Strings.sol";
+import "openzeppelin-contracts-upgradable/proxy/utils/Initalizable.sol";
+import "openzeppelin-contracts/utils/Strings.sol";
 
 error INVALID_SUB();
 error SUB_ALREADY_EXISTS();
@@ -14,7 +14,7 @@ error NOT_OWNER();
 error NOT_OWNER_OR_WHITELISTED();
 error TOKEN_NOT_ACCEPTED();
 
-contract LlamaSubsFlatRateERC20NonRefundable is ERC1155 {
+contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
     using SafeTransferLib for ERC20;
 
     struct Sub {
