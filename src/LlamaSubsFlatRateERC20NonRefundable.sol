@@ -166,7 +166,7 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initalizable {
 
     function expiration(uint256 id) external view returns (uint256 expires) {
         uint40 originalExpires = id >> (256-40);
-        expires = max(newExpires[id], expires);
+        expires = max(newExpires[id], originalExpires);
     }
 
     function max(uint256 a, uint256 b) internal pure returns (uint256) {
