@@ -2,9 +2,10 @@
 
 pragma solidity ^0.8.17;
 
-import "solmate/tokens/ERC1155.sol";
+import {ERC1155} from "solmate/tokens/ERC1155.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
+import "openzeppelin-contracts-upgradable/contracts/proxy/utils/Initalizable.sol";
 
 error INVALID_SUB();
 error SUB_ALREADY_EXISTS();
@@ -12,7 +13,7 @@ error NOT_OWNER();
 error NOT_OWNER_OR_WHITELISTED();
 error TOKEN_NOT_ACCEPTED();
 
-contract LlamaSubsFlatRateERC20NonRefundable is ERC1155 {
+contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initalizable {
     using SafeTransferLib for ERC20;
 
     struct Sub {
@@ -31,11 +32,11 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155 {
     uint256 public numOfSubs;
     uint256 constant fee = 1;
     address constant feeCollector = 0x08a3c2A819E3de7ACa384c798269B3Ce1CD0e437;
-
+    
     mapping(uint256 => Sub) public subs;
-    mapping(uint => uint) public newExpires;
+    mapping(uint256 => uint256) public newExpires;
     mapping(address => uint256) public whitelist;
-    mapping(address => uint256) public acceptedTokens;
+    mapping(uint256 => mapping(address => uint256)) public acceptedTokens;
 
     event Subscribe(
         address subscriber,
@@ -44,36 +45,38 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155 {
         uint40 expires,
         uint208 cost
     );
-    event Claim(address caller, address to, uint256 amount);
+    event Extend(
+        uint256 id,
+        uint56 sub,
+        address token,
+        uint40 expires,
+        uint208 cost
+    );
+    event Claim(address caller, address token, address to, uint256 amount);
     event AddSub(uint256 subNumber, uint208 costOfSub, uint40 duration);
     event RemoveSub(uint256 subNumber);
     event AddWhitelist(address toAdd);
     event RemoveWhitelist(address toRemove);
-
-    constructor(address _owner, address[] _acceptedTokens){
-        owner = _owner;
-        uint i = 0;
-        while(i < _acceptedTokens.length){
-            acceptedTokens[_acceptedTokens[i]] = 1;
-            unchecked {
-                i++;
-            }
-        }
-    }
 
     modifier onlyOwner() {
         if (msg.sender != owner) revert NOT_OWNER();
         _;
     }
 
-    function transferOwnership(address newOwner) external onlyOwner {
-        owner = newOwner;
+    function initialize(address _owner) public {
+        owner = _owner;
     }
 
-    function subscribe(address _subscriber, uint56 _sub, address token) external {
-        if(acceptedTokens[token] == 0){
-            revert TOKEN_NOT_ACCEPTED();
-        }
+    function transferOwnership(address _newOwner) external onlyOwner {
+        owner = _newOwner;
+    }
+
+    function subscribe(
+        address _subscriber,
+        uint56 _sub,
+        address _token
+    ) external {
+        if (acceptedTokens[_sub][_token] == 0) revert TOKEN_NOT_ACCEPTED();
         Sub storage sub = subs[_sub];
         if (sub.disabled != 0 || sub.costOfSub == 0 || sub.duration == 0)
             revert INVALID_SUB();
@@ -81,35 +84,43 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155 {
         unchecked {
             expires = uint40(block.timestamp + sub.duration);
         }
-        uint id = uint256(Subscription({expires: expires, sub: _sub, originalOwner: _subscriber}));
-        if(balanceOf[_subscriber][id] != 0){
-            revert SUB_ALREADY_EXISTS();
-        }
+        uint256 id = uint256(
+            abi.encodePacked(
+                Subscription({
+                    expires: expires,
+                    sub: _sub,
+                    originalOwner: _subscriber
+                })
+            )
+        );
+        if (balanceOf[_subscriber][id] != 0) revert SUB_ALREADY_EXISTS();
+
         _mint(_subscriber, id, 1, "");
-        ERC20(token).safeTransferFrom(msg.sender, address(this), sub.costOfSub);
-        emit Subscribe(_subscriber, _sub, token, expires, sub.costOfSub);
+        ERC20(_token).safeTransferFrom(
+            msg.sender,
+            address(this),
+            sub.costOfSub
+        );
+        emit Subscribe(_subscriber, _sub, _token, expires, sub.costOfSub);
     }
 
-    function max(uint256 a, uint256 b) internal pure returns (uint256) {
-        return a > b ? a : b;
-    }
-
-    function extend(address id, address token) external {
-        if(acceptedTokens[token] == 0){
-            revert TOKEN_NOT_ACCEPTED();
-        }
-        (uint40 originalExpires, uint56 sub) = Subscription(id);
+    function extend(address _id, address _token) external {
+        (uint40 originalExpires, uint56 _sub) = Subscription(_id);
         Sub storage sub = subs[_sub];
+        if (acceptedTokens[_sub][_token] == 0) revert TOKEN_NOT_ACCEPTED();
         if (sub.disabled != 0 || sub.costOfSub == 0 || sub.duration == 0)
             revert INVALID_SUB();
-
-        uint expires = max(max(newExpires[id], originalExpires), block.timestamp);
-        unchecked {
-            expires = uint40(expires + sub.duration);
-        }
-        newExpires[id] = newExpires;
-        ERC20(token).safeTransferFrom(msg.sender, address(this), sub.costOfSub);
-        emit Subscribe(_subscriber, _sub, token, expires, sub.costOfSub);
+        uint256 expires = max(
+            max(newExpires[_id], originalExpires),
+            block.timestamp
+        );
+        newExpires[_id] = newExpires;
+        ERC20(_token).safeTransferFrom(
+            msg.sender,
+            address(this),
+            sub.costOfSub
+        );
+        emit Extend(_id, _sub, _token, expires, sub.costOfSub);
     }
 
     function addSub(uint208 _costOfSub, uint40 _duration) external onlyOwner {
@@ -118,6 +129,7 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155 {
             duration: _duration,
             disabled: 0
         });
+        uint256 oldNumOfSubs = numOfSubs;
         unchecked {
             ++numOfSubs;
         }
@@ -126,27 +138,25 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155 {
 
     function removeSub(uint56 _sub) external onlyOwner {
         Sub storage sub = subs[_sub];
-        if (sub.disabled != 0 || sub.duration == 0)
-            revert INVALID_SUB();
+        if (sub.disabled != 0 || sub.duration == 0) revert INVALID_SUB();
         subs[_sub].disabled = 1;
         emit RemoveSub(_sub);
     }
 
-    function setAcceptedToken(address token, bool value) external onlyOwner {
-        acceptedTokens[token] = value==true?1:0;
+    function setAcceptedToken(
+        uint256 _id,
+        address _token,
+        bool _value
+    ) external onlyOwner {
+        acceptedTokens[_id][_token] = _value == true ? 1 : 0;
     }
 
-    function claim(uint256 _amount) external {
+    function claim(address _token, uint256 _amount) external {
         if (msg.sender != owner && whitelist[msg.sender] != 1)
             revert NOT_OWNER_OR_WHITELISTED();
-        ERC20(token).safeTransfer(owner, (_amount*(100-fee))/100);
-        ERC20(token).safeTransfer(feeCollector, (_amount*fee)/100);
-        emit Claim(msg.sender, owner, _amount);
-    }
-
-    function expiration(uint256 id) view external returns (uint expires) {
-        (uint40 originalExpires) = Subscription(id);
-        expires = max(newExpires[id], expires);
+        ERC20(_token).safeTransfer(owner, (_amount * (100 - fee)) / 100);
+        ERC20(_token).safeTransfer(feeCollector, (_amount * fee) / 100);
+        emit Claim(msg.sender, _token, owner, _amount);
     }
 
     function addWhitelist(address _toAdd) external onlyOwner {
@@ -157,5 +167,14 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155 {
     function removeWhitelist(address _toRemove) external onlyOwner {
         whitelist[_toRemove] = 0;
         emit RemoveWhitelist(_toRemove);
+    }
+
+    function expiration(uint256 id) external view returns (uint256 expires) {
+        uint40 originalExpires = Subscription(id);
+        expires = max(newExpires[id], expires);
+    }
+
+    function max(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a > b ? a : b;
     }
 }
