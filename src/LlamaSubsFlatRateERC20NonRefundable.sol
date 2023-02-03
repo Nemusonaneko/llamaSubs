@@ -5,8 +5,8 @@ pragma solidity ^0.8.17;
 import {ERC1155} from "solmate/tokens/ERC1155.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
-import "openzeppelin-contracts-upgradable/contracts/proxy/utils/Initalizable.sol";
-import "openzeppelin-contracts-upgradable/contracts/utils/Strings.sol";
+import "openzeppelin-contracts-upgradable/proxy/utils/Initalizable.sol";
+import "openzeppelin-contracts/utils/Strings.sol";
 
 error INVALID_SUB();
 error SUB_ALREADY_EXISTS();
@@ -14,7 +14,7 @@ error NOT_OWNER();
 error NOT_OWNER_OR_WHITELISTED();
 error TOKEN_NOT_ACCEPTED();
 
-contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initalizable {
+contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
     using SafeTransferLib for ERC20;
 
     struct Sub {
@@ -26,7 +26,7 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initalizable {
     address public owner;
     uint256 public numOfSubs;
     address constant feeCollector = 0x08a3c2A819E3de7ACa384c798269B3Ce1CD0e437;
-    
+
     mapping(uint256 => Sub) public subs;
     mapping(uint256 => uint256) public newExpires;
     mapping(address => uint256) public whitelist;
@@ -41,9 +41,9 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initalizable {
     );
     event Extend(
         uint256 id,
-        uint56 sub,
+        uint256 sub,
         address token,
-        uint40 expires,
+        uint256 expires,
         uint208 cost
     );
     event Claim(address caller, address token, address to, uint256 amount);
@@ -66,8 +66,17 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initalizable {
     }
 
     function uri(uint256 id) public view override returns (string memory) {
-        return string(abi.encodePacked("https://nft.llamapay.com/LlamaSubsFlatRateERC20NonRefundable/", Strings.toString(block.chainid), "/",
-            Strings.toHexString(uint160(address(this)), 20), "/{id}"));
+        return
+            string(
+                abi.encodePacked(
+                    "https://nft.llamapay.com/LlamaSubsFlatRateERC20NonRefundable/",
+                    Strings.toString(block.chainid),
+                    "/",
+                    Strings.toHexString(uint160(address(this)), 20),
+                    "/",
+                    Strings.toString(id)
+                )
+            );
     }
 
     function subscribe(
@@ -83,9 +92,9 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initalizable {
         unchecked {
             expires = uint40(block.timestamp + sub.duration);
         }
-        uint256 id = uint256(bytes32(
-            abi.encodePacked(expires, _sub, _subscriber)
-        ));
+        uint256 id = uint256(
+            bytes32(abi.encodePacked(expires, _sub, _subscriber))
+        );
         if (balanceOf[_subscriber][id] != 0) revert SUB_ALREADY_EXISTS();
 
         _mint(_subscriber, id, 1, "");
@@ -97,9 +106,9 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initalizable {
         emit Subscribe(_subscriber, _sub, _token, expires, sub.costOfSub);
     }
 
-    function extend(uint _id, address _token) external {
-        uint40 originalExpires = _id >> (256-40);
-        uint56 _sub = (_id << 40) >> (256-40-56);
+    function extend(uint256 _id, address _token) external {
+        uint256 originalExpires = _id >> (256 - 40);
+        uint256 _sub = (_id << 40) >> (256 - 40 - 56);
         Sub storage sub = subs[_sub];
         if (acceptedTokens[_sub][_token] == 0) revert TOKEN_NOT_ACCEPTED();
         if (sub.disabled != 0 || sub.costOfSub == 0 || sub.duration == 0)
@@ -164,7 +173,7 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initalizable {
     }
 
     function expiration(uint256 id) external view returns (uint256 expires) {
-        uint40 originalExpires = id >> (256-40);
+        uint256 originalExpires = id >> (256 - 40);
         expires = max(newExpires[id], originalExpires);
     }
 
