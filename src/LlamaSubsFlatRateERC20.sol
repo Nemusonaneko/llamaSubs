@@ -138,7 +138,7 @@ contract LlamaSubsFlatRateERC20 {
                     periodDuration;
                 subsToExpire[user.tier][user.expires]--;
                 tiers[user.tier].amountOfSubs--;
-                users.expires = currentPeriod;
+                user.expires = currentPeriod;
             }
         }
         ERC20(token).safeTransfer(msg.sender, refund);
@@ -174,7 +174,7 @@ contract LlamaSubsFlatRateERC20 {
         uint256 _tier = activeTiers[_tierIndex];
         uint256 last = activeTiers[len - 1];
         tiers[_tier].disabledAt = uint40(currentPeriod);
-        activeTiers[i] = last;
+        activeTiers[_tierIndex] = last;
         activeTiers.pop();
         emit RemoveTier(_tier);
     }
