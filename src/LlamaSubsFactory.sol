@@ -41,14 +41,13 @@ contract LlamaSubsFactory {
         address _token,
         uint256 _currentPeriod,
         uint256 _periodDuration,
-        TierInfo[] tiers
+        LlamaSubsFlatRateERC20.TierInfo[] calldata tiers
     ) external returns (LlamaSubsFlatRateERC20 deployedContract) {
         deployedContract = LlamaSubsFlatRateERC20(
             address(refundableImpl).clone()
         );
         deployedContract.initialize(
             msg.sender,
-            _token,
             _currentPeriod,
             _periodDuration,
             tiers
