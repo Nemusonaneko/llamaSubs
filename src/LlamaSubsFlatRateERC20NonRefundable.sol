@@ -27,7 +27,7 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155 {
     uint256 public numOfSubs;
     uint256 constant fee = 1;
     address constant feeCollector = 0x08a3c2A819E3de7ACa384c798269B3Ce1CD0e437;
-    
+
     mapping(uint256 => Sub) public subs;
     mapping(uint256 => uint256) public newExpires;
     mapping(address => uint256) public whitelist;
@@ -67,8 +67,17 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155 {
     }
 
     function uri(uint256 id) public view override returns (string memory) {
-        return string(abi.encodePacked("https://nft.llamapay.com/LlamaSubsFlatRateERC20NonRefundable/", Strings.toString(block.chainid), "/",
-            Strings.toHexString(uint160(address(this)), 20), Strings.toString(id)));
+        return
+            string(
+                abi.encodePacked(
+                    "https://nft.llamapay.com/LlamaSubsFlatRateERC20NonRefundable/",
+                    Strings.toString(block.chainid),
+                    "/",
+                    Strings.toHexString(uint160(address(this)), 20),
+                    "/",
+                    Strings.toString(id)
+                )
+            );
     }
 
     function subscribe(
@@ -84,9 +93,9 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155 {
         unchecked {
             expires = uint40(block.timestamp + sub.duration);
         }
-        uint256 id = uint256(bytes32(
-            abi.encodePacked(expires, _sub, _subscriber)
-        ));
+        uint256 id = uint256(
+            bytes32(abi.encodePacked(expires, _sub, _subscriber))
+        );
         if (balanceOf[_subscriber][id] != 0) revert SUB_ALREADY_EXISTS();
 
         _mint(_subscriber, id, 1, "");
@@ -98,9 +107,9 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155 {
         emit Subscribe(_subscriber, _sub, _token, expires, sub.costOfSub);
     }
 
-    function extend(uint _id, address _token) external {
-        uint256 originalExpires = _id >> (256-40);
-        uint256 _sub = (_id << 40) >> (256-40-56);
+    function extend(uint256 _id, address _token) external {
+        uint256 originalExpires = _id >> (256 - 40);
+        uint256 _sub = (_id << 40) >> (256 - 40 - 56);
         Sub storage sub = subs[_sub];
         if (acceptedTokens[_sub][_token] == 0) revert TOKEN_NOT_ACCEPTED();
         if (sub.disabled != 0 || sub.costOfSub == 0 || sub.duration == 0)
@@ -165,7 +174,7 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155 {
     }
 
     function expiration(uint256 id) external view returns (uint256 expires) {
-        uint256 originalExpires = id >> (256-40);
+        uint256 originalExpires = id >> (256 - 40);
         expires = max(newExpires[id], originalExpires);
     }
 
