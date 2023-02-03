@@ -194,7 +194,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
 
     function unsubscribe(uint256 _id) external {
         if (balanceOf[msg.sender][_id] == 0) revert SUB_DOES_NOT_EXIST();
-        uint256 originalExpires = _id >> (256 - 40);
+        uint256 originalExpires = max(updatedExpiration[_id], _id >> (256 - 40));
         uint256 _tier = (_id << 40) >> (256 - 40 - 56);
         Tier storage tier = tiers[_tier];
         uint256 refund;
@@ -298,5 +298,9 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         }
         currentPeriod = newCurrentPeriod;
         claimable = newClaimable;
+    }
+
+    function expiration(uint256 id) external view returns (uint256 expires) {
+        expires = max(updatedExpiration[id], id >> (256 - 40));
     }
 }
