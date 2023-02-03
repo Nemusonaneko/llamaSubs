@@ -22,12 +22,6 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initalizable {
         uint8 disabled;
     }
 
-    struct Subscription {
-        uint40 expires;
-        uint56 sub;
-        address originalOwner; // Acts as salt to prevent collisions
-    }
-
     address public owner;
     uint256 public numOfSubs;
     uint256 constant fee = 1;
@@ -84,15 +78,9 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initalizable {
         unchecked {
             expires = uint40(block.timestamp + sub.duration);
         }
-        uint256 id = uint256(
-            abi.encodePacked(
-                Subscription({
-                    expires: expires,
-                    sub: _sub,
-                    originalOwner: _subscriber
-                })
-            )
-        );
+        uint256 id = uint256(bytes32(
+            abi.encodePacked(expires, _sub, _subscriber)
+        ));
         if (balanceOf[_subscriber][id] != 0) revert SUB_ALREADY_EXISTS();
 
         _mint(_subscriber, id, 1, "");
@@ -104,8 +92,9 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initalizable {
         emit Subscribe(_subscriber, _sub, _token, expires, sub.costOfSub);
     }
 
-    function extend(address _id, address _token) external {
-        (uint40 originalExpires, uint56 _sub) = Subscription(_id);
+    function extend(uint _id, address _token) external {
+        uint40 originalExpires = _id >> (256-40);
+        uint56 _sub = (_id << 40) >> (256-40-56);
         Sub storage sub = subs[_sub];
         if (acceptedTokens[_sub][_token] == 0) revert TOKEN_NOT_ACCEPTED();
         if (sub.disabled != 0 || sub.costOfSub == 0 || sub.duration == 0)
@@ -170,7 +159,7 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initalizable {
     }
 
     function expiration(uint256 id) external view returns (uint256 expires) {
-        uint40 originalExpires = Subscription(id);
+        uint40 originalExpires = id >> (256-40);
         expires = max(newExpires[id], expires);
     }
 
