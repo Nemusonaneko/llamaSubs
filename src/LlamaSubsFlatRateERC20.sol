@@ -35,6 +35,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
     uint256 public numOfTiers;
     uint256[] public activeTiers;
     mapping(uint256 => Tier) public tiers;
+    mapping(uint256 => uint256) public updatedExpiration;
     mapping(uint256 => mapping(uint256 => uint256)) public subsToExpire;
     mapping(address => uint256) public whitelist;
 
@@ -155,7 +156,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
     }
 
     function extend(uint256 _id, uint256 _durations) external {
-        uint256 originalExpires = _id >> (256 - 40);
+        uint256 originalExpires = max(updatedExpiration[_id], _id >> (256 - 40));
         uint256 _tier = (_id << 40) >> (256 - 40 - 56);
         Tier storage tier = tiers[_tier];
         if (tier.disabledAt != 0) revert INVALID_TIER();
@@ -178,6 +179,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
                     periodDuration;
             }
             subsToExpire[_tier][expires]++;
+            updatedExpiration[_id] = expires;
         }
         uint256 sendToContract = claimableThisPeriod +
             (actualDurations * uint256(tier.costPerPeriod));
