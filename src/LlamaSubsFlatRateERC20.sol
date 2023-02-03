@@ -15,6 +15,8 @@ error NOT_OWNER();
 error NOT_OWNER_OR_WHITELISTED();
 error CURRENT_PERIOD_IN_FUTURE();
 error WRONG_TIER();
+error SUB_ALREADY_EXISTS();
+error SUB_DOES_NOT_EXIST();
 
 contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
     using SafeTransferLib for ERC20;
@@ -23,11 +25,6 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         uint128 costPerPeriod;
         uint88 amountOfSubs;
         uint40 disabledAt;
-    }
-
-    struct User {
-        uint216 tier;
-        uint40 expires;
     }
 
     address public owner;
@@ -39,7 +36,6 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
     uint256[] public activeTiers;
     mapping(uint256 => Tier) public tiers;
     mapping(uint256 => mapping(uint256 => uint256)) public subsToExpire;
-    mapping(address => User) public users;
     mapping(address => uint256) public whitelist;
 
     event Subscribe(
@@ -49,7 +45,14 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         uint256 expires,
         uint256 sent
     );
-    event Unsubscribe(address indexed subscriber, uint256 refund);
+    event Extend(
+        uint256 id,
+        uint256 tier,
+        uint256 durations,
+        uint256 expires,
+        uint256 sent
+    );
+    event Unsubscribe(uint256 id, uint256 refund);
     event Claim(address caller, address to, uint256 amount);
     event AddTier(uint256 tierNumber, uint128 costPerPeriod);
     event RemoveTier(uint256 tierNumber);
@@ -120,34 +123,29 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
             revert INVALID_TIER();
 
         uint256 updatedCurrentPeriod = getUpdatedCurrentPeriod();
-        User storage user = users[_subscriber];
         uint256 expires;
         uint256 actualDurations;
         uint256 claimableThisPeriod;
         unchecked {
             actualDurations = _durations - 1;
-            expires =
-                max(uint256(user.expires), updatedCurrentPeriod) +
-                (actualDurations * periodDuration);
-            if (user.expires >= currentPeriod) {
-                subsToExpire[user.tier][user.expires]--;
-            }
-            if (user.expires < updatedCurrentPeriod) {
-                claimableThisPeriod =
-                    (tier.costPerPeriod *
-                        (updatedCurrentPeriod - block.timestamp)) /
-                    periodDuration;
-            }
-            subsToExpire[user.tier][expires]++;
+            updatedCurrentPeriod + (actualDurations * periodDuration);
+            claimableThisPeriod =
+                (tier.costPerPeriod *
+                    (updatedCurrentPeriod - block.timestamp)) /
+                periodDuration;
+            expires = updatedCurrentPeriod + (actualDurations * periodDuration);
+        }
+        uint256 id = uint256(
+            bytes32(abi.encodePacked(expires, _tier, _subscriber))
+        );
+        if (balanceOf[_subscriber][id] != 0) revert SUB_ALREADY_EXISTS();
+        unchecked {
+            subsToExpire[_tier][expires]++;
+            tier.amountOfSubs++;
         }
         uint256 sendToContract = claimableThisPeriod +
             (actualDurations * uint256(tier.costPerPeriod));
         claimable += claimableThisPeriod;
-        users[_subscriber] = User({
-            tier: uint216(_tier),
-            expires: uint40(expires)
-        });
-        tier.amountOfSubs++;
         ERC20(token).safeTransferFrom(
             msg.sender,
             address(this),
@@ -156,31 +154,66 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         emit Subscribe(_subscriber, _tier, _durations, expires, sendToContract);
     }
 
-    function unsubscribe() external {
-        User storage user = users[msg.sender];
-        if (user.expires == 0) revert NOT_SUBBED();
+    function extend(uint256 _id, uint256 _durations) external {
+        uint256 originalExpires = _id >> (256 - 40);
+        uint256 _tier = (_id << 40) >> (256 - 40 - 56);
+        Tier storage tier = tiers[_tier];
+        if (tier.disabledAt != 0) revert INVALID_TIER();
+        uint256 updatedCurrentPeriod = getUpdatedCurrentPeriod();
+        uint256 actualDurations;
+        uint256 claimableThisPeriod;
+        uint256 expires;
+        unchecked {
+            actualDurations = _durations - 1;
+            expires =
+                max(uint256(originalExpires), updatedCurrentPeriod) +
+                (actualDurations * periodDuration);
+            if (originalExpires >= currentPeriod) {
+                subsToExpire[_tier][originalExpires]--;
+            }
+            if (originalExpires < updatedCurrentPeriod) {
+                claimableThisPeriod =
+                    (tier.costPerPeriod *
+                        (updatedCurrentPeriod - block.timestamp)) /
+                    periodDuration;
+            }
+            subsToExpire[_tier][expires]++;
+        }
+        uint256 sendToContract = claimableThisPeriod +
+            (actualDurations * uint256(tier.costPerPeriod));
+        claimable += claimableThisPeriod;
+        ERC20(token).safeTransferFrom(
+            msg.sender,
+            address(this),
+            sendToContract
+        );
+        emit Extend(_id, _tier, _durations, expires, sendToContract);
+    }
 
-        Tier storage tier = tiers[user.tier];
+    function unsubscribe(uint256 _id) external {
+        if (balanceOf[msg.sender][_id] == 0) revert SUB_DOES_NOT_EXIST();
+        uint256 originalExpires = _id >> (256 - 40);
+        uint256 _tier = (_id << 40) >> (256 - 40 - 56);
+        Tier storage tier = tiers[_tier];
         uint256 refund;
         uint256 updatedCurrentPeriod = getUpdatedCurrentPeriod();
         unchecked {
-            if (tier.disabledAt > 0 && user.expires > tier.disabledAt) {
+            if (tier.disabledAt > 0 && originalExpires > tier.disabledAt) {
                 refund =
-                    ((uint256(user.expires) - uint256(tier.disabledAt)) *
+                    ((uint256(originalExpires) - uint256(tier.disabledAt)) *
                         uint256(tier.costPerPeriod)) /
                     periodDuration;
-            } else if (user.expires > updatedCurrentPeriod) {
+            } else if (originalExpires > updatedCurrentPeriod) {
                 refund =
-                    ((uint256(user.expires) - updatedCurrentPeriod) *
+                    ((uint256(originalExpires) - updatedCurrentPeriod) *
                         uint256(tier.costPerPeriod)) /
                     periodDuration;
-                subsToExpire[user.tier][user.expires]--;
-                tiers[user.tier].amountOfSubs--;
-                user.expires = uint40(updatedCurrentPeriod);
+                subsToExpire[_tier][originalExpires]--;
+                tiers[_tier].amountOfSubs--;
             }
         }
         ERC20(token).safeTransfer(msg.sender, refund);
-        emit Unsubscribe(msg.sender, refund);
+        emit Unsubscribe(_id, refund);
     }
 
     function claim(uint256 _amount) external {
