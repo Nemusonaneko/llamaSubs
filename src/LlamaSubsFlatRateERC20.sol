@@ -10,6 +10,8 @@ error ALREADY_SUBBED();
 error NOT_SUBBED();
 error NOT_OWNER();
 error NOT_OWNER_OR_WHITELISTED();
+error CURRENT_PERIOD_IN_FUTURE();
+error WRONG_TIER();
 
 contract LlamaSubsFlatRateERC20 {
     using SafeTransferLib for ERC20;
@@ -61,6 +63,9 @@ contract LlamaSubsFlatRateERC20 {
         token = _token;
         currentPeriod = _currentPeriod;
         periodDuration = _periodDuration;
+        if(block.timestamp + _periodDuration < _currentPeriod){
+            revert CURRENT_PERIOD_IN_FUTURE();
+        }
     }
 
     modifier onlyOwner() {
@@ -176,7 +181,7 @@ contract LlamaSubsFlatRateERC20 {
         _update();
         uint256 len = activeTiers.length;
         if(_tierIndex >= len){
-            revert();
+            revert WRONG_TIER();
         }
         uint256 _tier = activeTiers[_tierIndex];
         uint256 last = activeTiers[len - 1];
