@@ -30,7 +30,7 @@ contract LlamaSubsFlatRateERC20 {
     address public immutable owner;
     address public immutable token;
     uint256 public currentPeriod;
-    uint256 public periodDuration;
+    uint256 public immutable periodDuration;
     uint256 public claimable;
     uint256 public numOfTiers;
     uint256[] public activeTiers;

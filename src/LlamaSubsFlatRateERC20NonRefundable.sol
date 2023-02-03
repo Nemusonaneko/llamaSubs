@@ -6,6 +6,7 @@ import {ERC1155} from "solmate/tokens/ERC1155.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import "openzeppelin-contracts-upgradable/contracts/proxy/utils/Initalizable.sol";
+import "openzeppelin-contracts-upgradable/contracts/utils/Strings.sol";
 
 error INVALID_SUB();
 error SUB_ALREADY_EXISTS();
@@ -63,6 +64,11 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initalizable {
 
     function transferOwnership(address _newOwner) external onlyOwner {
         owner = _newOwner;
+    }
+
+    function uri(uint256 id) public view override returns (string memory) {
+        return string(abi.encodePacked("https://nft.llamapay.com/LlamaSubsFlatRateERC20NonRefundable/", Strings.toString(block.chainid), "/",
+            Strings.toHexString(uint160(address(this)), 20), "/{id}"));
     }
 
     function subscribe(
