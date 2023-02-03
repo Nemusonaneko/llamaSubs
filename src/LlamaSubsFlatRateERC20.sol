@@ -22,13 +22,13 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
     using SafeTransferLib for ERC20;
 
     struct Tier {
-        uint128 costPerPeriod;
+        uint224 costPerPeriod;
         uint88 amountOfSubs;
         uint40 disabledAt;
+        address token;
     }
 
     address public owner;
-    address public token;
     uint256 public currentPeriod;
     uint256 public periodDuration;
     uint256 public claimable;
@@ -55,29 +55,44 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
     );
     event Unsubscribe(uint256 id, uint256 refund);
     event Claim(address caller, address to, uint256 amount);
-    event AddTier(uint256 tierNumber, uint128 costPerPeriod);
+    event AddTier(uint256 tierNumber, uint224 costPerPeriod);
     event RemoveTier(uint256 tierNumber);
     event AddWhitelist(address toAdd);
     event RemoveWhitelist(address toRemove);
 
+    struct TierInfo{
+        uint224 costPerPeriod;
+        address token;
+    }
+
     function initialize(
         address _owner,
-        address _token,
         uint256 _currentPeriod,
-        uint256 _periodDuration
+        uint256 _periodDuration,
+        TierInfo[] tiers
     ) public {
         owner = _owner;
-        token = _token;
         currentPeriod = _currentPeriod;
         periodDuration = _periodDuration;
         if (block.timestamp + _periodDuration < _currentPeriod) {
             revert CURRENT_PERIOD_IN_FUTURE();
+        }
+        uint i = 0;
+        while(i<tiers.length){
+            addTierInternal(tiers[i].costPerPeriod, tiers[i].token);
+            unchecked {
+                i++;
+            }
         }
     }
 
     modifier onlyOwner() {
         if (msg.sender != owner) revert NOT_OWNER();
         _;
+    }
+
+    function transferOwnership(address _newOwner) external onlyOwner {
+        owner = _newOwner;
     }
 
     function uri(uint256 id)
@@ -147,7 +162,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         uint256 sendToContract = claimableThisPeriod +
             (actualDurations * uint256(tier.costPerPeriod));
         claimable += claimableThisPeriod;
-        ERC20(token).safeTransferFrom(
+        ERC20(tier.token).safeTransferFrom(
             msg.sender,
             address(this),
             sendToContract
@@ -184,7 +199,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         uint256 sendToContract = claimableThisPeriod +
             (actualDurations * uint256(tier.costPerPeriod));
         claimable += claimableThisPeriod;
-        ERC20(token).safeTransferFrom(
+        ERC20(tier.token).safeTransferFrom(
             msg.sender,
             address(this),
             sendToContract
@@ -214,11 +229,11 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
                 tiers[_tier].amountOfSubs--;
             }
         }
-        ERC20(token).safeTransfer(msg.sender, refund);
+        ERC20(tier.token).safeTransfer(msg.sender, refund);
         emit Unsubscribe(_id, refund);
     }
 
-    function claim(uint256 _amount) external {
+    function claim(uint256 _amount, address token) external {
         if (msg.sender != owner && whitelist[msg.sender] != 1)
             revert NOT_OWNER_OR_WHITELISTED();
         _update();
@@ -231,15 +246,20 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         emit Claim(msg.sender, owner, _amount);
     }
 
-    function addTier(uint128 _costPerPeriod) external onlyOwner {
-        _update();
+    function addTierInternal(uint224 _costPerPeriod, address _token) internal {
         uint256 tierNumber = numOfTiers;
         tiers[tierNumber].costPerPeriod = _costPerPeriod;
+        tiers[tierNumber].token = _token;
         activeTiers.push(tierNumber);
         unchecked {
             numOfTiers++;
         }
         emit AddTier(tierNumber, _costPerPeriod);
+    }
+
+    function addTier(uint224 _costPerPeriod, address _token) external onlyOwner {
+        _update();
+        addTierInternal(_costPerPeriod, _token);
     }
 
     function removeTier(uint256 _tierIndex) external onlyOwner {

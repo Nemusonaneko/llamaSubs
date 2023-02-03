@@ -32,10 +32,16 @@ contract LlamaSubsFactory {
         refundableImpl = _refundableImpl;
     }
 
+    struct TierInfo{
+        uint224 costPerPeriod;
+        address token;
+    }
+
     function deployFlatRateERC20(
         address _token,
         uint256 _currentPeriod,
-        uint256 _periodDuration
+        uint256 _periodDuration,
+        TierInfo[] tiers
     ) external returns (LlamaSubsFlatRateERC20 deployedContract) {
         deployedContract = LlamaSubsFlatRateERC20(
             address(refundableImpl).clone()
@@ -44,7 +50,8 @@ contract LlamaSubsFactory {
             msg.sender,
             _token,
             _currentPeriod,
-            _periodDuration
+            _periodDuration,
+            tiers
         );
         emit DeployFlatRateERC20(
             address(deployedContract),
