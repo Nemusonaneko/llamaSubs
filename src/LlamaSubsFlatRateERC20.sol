@@ -68,6 +68,14 @@ contract LlamaSubsFlatRateERC20 {
         _;
     }
 
+     function getUpdatedCurrentPeriod()
+        public
+        view
+        returns (uint256 updatedCurrentPeriod)
+    {
+        return (block.timestamp + periodDuration) - (currentPeriod % periodDuration);
+    }
+
     function max(uint256 a, uint256 b) internal pure returns (uint256) {
         return a > b ? a : b;
     }
