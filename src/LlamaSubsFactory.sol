@@ -13,15 +13,14 @@ contract LlamaSubsFactory {
     LlamaSubsFlatRateERC20 public immutable refundableImpl;
 
     event DeployFlatRateERC20(
-        address indexed deployedContract,
+        address deployedContract,
         address indexed owner,
-        address indexed token,
         uint256 currentPeriod,
         uint256 periodDuration
     );
     event DeployFlatRateERC20NonRefundable(
-        address indexed deployedContract,
-        address indexed token
+        address deployedContract,
+        address indexed owner
     );
 
     constructor(
@@ -38,7 +37,6 @@ contract LlamaSubsFactory {
     }
 
     function deployFlatRateERC20(
-        address _token,
         uint256 _currentPeriod,
         uint256 _periodDuration,
         LlamaSubsFlatRateERC20.TierInfo[] calldata tiers
@@ -55,20 +53,19 @@ contract LlamaSubsFactory {
         emit DeployFlatRateERC20(
             address(deployedContract),
             msg.sender,
-            _token,
             _currentPeriod,
             _periodDuration
         );
     }
 
-    function deployFlatRateERC20NonRefundable()
+    function deployFlatRateERC20NonRefundable(LlamaSubsFlatRateERC20NonRefundable.SubInfo[] calldata subs)
         external
         returns (LlamaSubsFlatRateERC20NonRefundable deployedContract)
     {
         deployedContract = LlamaSubsFlatRateERC20NonRefundable(
             address(nonrefundableImpl).clone()
         );
-        deployedContract.initialize(msg.sender);
+        deployedContract.initialize(msg.sender, subs);
         emit DeployFlatRateERC20NonRefundable(
             address(deployedContract),
             msg.sender

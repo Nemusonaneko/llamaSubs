@@ -77,14 +77,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         if (block.timestamp + _periodDuration < _currentPeriod) {
             revert CURRENT_PERIOD_IN_FUTURE();
         }
-        uint i = 0;
-        uint len = _tiers.length;
-        while(i<len){
-            addTierInternal(_tiers[i].costPerPeriod, _tiers[i].token);
-            unchecked {
-                i++;
-            }
-        }
+        addTiersInternal(_tiers);
     }
 
     modifier onlyOwner() {
@@ -258,8 +251,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         emit AddTier(tierNumber, _costPerPeriod);
     }
 
-    function addTiers(TierInfo[] calldata _tiers) external onlyOwner {
-        _update();
+    function addTiersInternal(TierInfo[] calldata _tiers) internal {
         uint i = 0;
         uint len = _tiers.length;
         while(i<len){
@@ -268,6 +260,11 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
                 i++;
             }
         }
+    }
+
+    function addTiers(TierInfo[] calldata _tiers) external onlyOwner {
+        _update();
+        addTiersInternal(_tiers);
     }
 
     function removeTierInternal(uint256 _tierIndex) internal {

@@ -57,8 +57,15 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
         _;
     }
 
-    function initialize(address _owner) public {
+    struct SubInfo{
+        uint208 costOfSub;
+        uint40 duration;
+        address token;
+    }
+
+    function initialize(address _owner, SubInfo[] calldata _subs) public {
         owner = _owner;
+        addSubsInternal(_subs);
     }
 
     function transferOwnership(address _newOwner) external onlyOwner {
@@ -129,7 +136,7 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
         emit Extend(_id, _sub, _token, expires, sub.costOfSub);
     }
 
-    function addSub(uint208 _costOfSub, uint40 _duration, address _token) external onlyOwner {
+    function addSubInternal(uint208 _costOfSub, uint40 _duration, address _token) internal {
         subs[numOfSubs] = Sub({
             costOfSub: _costOfSub,
             duration: _duration,
@@ -143,11 +150,37 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
         emit AddSub(oldNumOfSubs, _costOfSub, _duration, _token);
     }
 
-    function removeSub(uint56 _sub) external onlyOwner {
+    function addSubsInternal(SubInfo[] calldata _subs) internal {
+        uint i = 0;
+        uint len = _subs.length;
+        while(i<len){
+            addSubInternal(_subs[i].costOfSub, _subs[i].duration, _subs[i].token);
+            unchecked {
+                i++;
+            }
+        }
+    }
+
+    function addSubs(SubInfo[] calldata _subs) external onlyOwner {
+        addSubsInternal(_subs);
+    }
+
+    function removeSubInternal(uint56 _sub) internal {
         Sub storage sub = subs[_sub];
         if (sub.disabled != 0 || sub.duration == 0) revert INVALID_SUB();
         subs[_sub].disabled = 1;
         emit RemoveSub(_sub);
+    }
+
+    function removeSubs(uint56[] calldata _subs) external onlyOwner {
+        uint i = 0;
+        uint len = _subs.length;
+        while(i<len){
+            removeSubInternal(_subs[i]);
+            unchecked {
+                i++;
+            }
+        }
     }
 
     function claim(address _token, uint256 _amount) external {
