@@ -21,6 +21,7 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
         uint208 costOfSub;
         uint40 duration;
         uint8 disabled;
+        address token;
     }
 
     address public owner;
@@ -30,7 +31,6 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
     mapping(uint256 => Sub) public subs;
     mapping(uint256 => uint256) public newExpires;
     mapping(address => uint256) public whitelist;
-    mapping(uint256 => mapping(address => uint256)) public acceptedTokens;
 
     event Subscribe(
         address subscriber,
@@ -47,7 +47,7 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
         uint208 cost
     );
     event Claim(address caller, address token, address to, uint256 amount);
-    event AddSub(uint256 subNumber, uint208 costOfSub, uint40 duration);
+    event AddSub(uint256 subNumber, uint208 costOfSub, uint40 duration, address token);
     event RemoveSub(uint256 subNumber);
     event AddWhitelist(address toAdd);
     event RemoveWhitelist(address toRemove);
@@ -87,10 +87,8 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
 
     function subscribe(
         address _subscriber,
-        uint56 _sub,
-        address _token
+        uint56 _sub
     ) external {
-        if (acceptedTokens[_sub][_token] == 0) revert TOKEN_NOT_ACCEPTED();
         Sub storage sub = subs[_sub];
         if (sub.disabled != 0 || sub.costOfSub == 0 || sub.duration == 0)
             revert INVALID_SUB();
@@ -104,7 +102,7 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
         if (balanceOf[_subscriber][id] != 0) revert SUB_ALREADY_EXISTS();
 
         _mint(_subscriber, id, 1, "");
-        ERC20(_token).safeTransferFrom(
+        ERC20(sub.token).safeTransferFrom(
             msg.sender,
             address(this),
             sub.costOfSub
@@ -112,11 +110,10 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
         emit Subscribe(_subscriber, _sub, _token, expires, sub.costOfSub);
     }
 
-    function extend(uint256 _id, address _token) external {
+    function extend(uint256 _id) external {
         uint256 originalExpires = _id >> (256 - 40);
         uint256 _sub = (_id << 40) >> (256 - 40 - 56);
         Sub storage sub = subs[_sub];
-        if (acceptedTokens[_sub][_token] == 0) revert TOKEN_NOT_ACCEPTED();
         if (sub.disabled != 0 || sub.costOfSub == 0 || sub.duration == 0)
             revert INVALID_SUB();
         uint256 expires = max(
@@ -124,7 +121,7 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
             block.timestamp
         );
         newExpires[_id] = expires + sub.duration;
-        ERC20(_token).safeTransferFrom(
+        ERC20(sub.token).safeTransferFrom(
             msg.sender,
             address(this),
             sub.costOfSub
@@ -132,17 +129,18 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
         emit Extend(_id, _sub, _token, expires, sub.costOfSub);
     }
 
-    function addSub(uint208 _costOfSub, uint40 _duration) external onlyOwner {
+    function addSub(uint208 _costOfSub, uint40 _duration, address _token) external onlyOwner {
         subs[numOfSubs] = Sub({
             costOfSub: _costOfSub,
             duration: _duration,
-            disabled: 0
+            disabled: 0,
+            token: _token
         });
         uint256 oldNumOfSubs = numOfSubs;
         unchecked {
             ++numOfSubs;
         }
-        emit AddSub(oldNumOfSubs, _costOfSub, _duration);
+        emit AddSub(oldNumOfSubs, _costOfSub, _duration, _token);
     }
 
     function removeSub(uint56 _sub) external onlyOwner {
@@ -150,14 +148,6 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
         if (sub.disabled != 0 || sub.duration == 0) revert INVALID_SUB();
         subs[_sub].disabled = 1;
         emit RemoveSub(_sub);
-    }
-
-    function setAcceptedToken(
-        uint256 _id,
-        address _token,
-        bool _value
-    ) external onlyOwner {
-        acceptedTokens[_id][_token] = _value == true ? 1 : 0;
     }
 
     function claim(address _token, uint256 _amount) external {
