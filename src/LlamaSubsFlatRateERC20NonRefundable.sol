@@ -114,7 +114,7 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
             address(this),
             sub.costOfSub
         );
-        emit Subscribe(_subscriber, _sub, _token, expires, sub.costOfSub);
+        emit Subscribe(_subscriber, _sub, sub.token, expires, sub.costOfSub);
     }
 
     function extend(uint256 _id) external {
@@ -133,7 +133,7 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
             address(this),
             sub.costOfSub
         );
-        emit Extend(_id, _sub, _token, expires, sub.costOfSub);
+        emit Extend(_id, _sub, sub.token, expires, sub.costOfSub);
     }
 
     function addSubInternal(uint208 _costOfSub, uint40 _duration, address _token) internal {
