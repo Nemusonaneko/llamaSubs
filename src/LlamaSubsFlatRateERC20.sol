@@ -28,6 +28,11 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         address token;
     }
 
+    struct TierInfo {
+        uint224 costPerPeriod;
+        address token;
+    }
+
     address public owner;
     uint256 public currentPeriod;
     uint256 public periodDuration;
@@ -59,11 +64,6 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
     event RemoveTier(uint256 tierNumber);
     event AddWhitelist(address toAdd);
     event RemoveWhitelist(address toRemove);
-
-    struct TierInfo{
-        uint224 costPerPeriod;
-        address token;
-    }
 
     function initialize(
         address _owner,
@@ -165,7 +165,10 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
     }
 
     function extend(uint256 _id, uint256 _durations) external {
-        uint256 originalExpires = max(updatedExpiration[_id], _id >> (256 - 40));
+        uint256 originalExpires = max(
+            updatedExpiration[_id],
+            _id >> (256 - 40)
+        );
         uint256 _tier = (_id << 40) >> (256 - 40 - 56);
         Tier storage tier = tiers[_tier];
         if (tier.disabledAt != 0) revert INVALID_TIER();
@@ -203,7 +206,10 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
 
     function unsubscribe(uint256 _id) external {
         if (balanceOf[msg.sender][_id] == 0) revert SUB_DOES_NOT_EXIST();
-        uint256 originalExpires = max(updatedExpiration[_id], _id >> (256 - 40));
+        uint256 originalExpires = max(
+            updatedExpiration[_id],
+            _id >> (256 - 40)
+        );
         uint256 _tier = (_id << 40) >> (256 - 40 - 56);
         Tier storage tier = tiers[_tier];
         uint256 refund;
@@ -252,9 +258,9 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
     }
 
     function addTiersInternal(TierInfo[] calldata _tiers) internal {
-        uint i = 0;
-        uint len = _tiers.length;
-        while(i<len){
+        uint256 i = 0;
+        uint256 len = _tiers.length;
+        while (i < len) {
             addTierInternal(_tiers[i].costPerPeriod, _tiers[i].token);
             unchecked {
                 i++;
@@ -282,9 +288,9 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
 
     function removeTiers(uint256[] calldata _tierIndexs) external onlyOwner {
         _update();
-        uint i = 0;
-        uint len = _tierIndexs.length;
-        while(i<len){
+        uint256 i = 0;
+        uint256 len = _tierIndexs.length;
+        while (i < len) {
             removeTierInternal(_tierIndexs[i]);
             unchecked {
                 i++;
