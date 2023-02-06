@@ -123,6 +123,10 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         return a > b ? a : b;
     }
 
+    function currentExpires(uint256 original, uint256 updated) internal pure returns (uint256) {
+        return updated == 0?original:updated;
+    }
+
     function subscribe(
         address _subscriber,
         uint256 _tier,
@@ -165,9 +169,9 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
     }
 
     function extend(uint256 _id, uint256 _durations) external {
-        uint256 originalExpires = max(
-            updatedExpiration[_id],
-            _id >> (256 - 40)
+        uint256 originalExpires = currentExpires(
+            _id >> (256 - 40),
+            updatedExpiration[_id]
         );
         uint256 _tier = (_id << 40) >> (256 - 40 - 56);
         Tier storage tier = tiers[_tier];
@@ -206,9 +210,9 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
 
     function unsubscribe(uint256 _id) external {
         if (balanceOf[msg.sender][_id] == 0) revert SUB_DOES_NOT_EXIST();
-        uint256 originalExpires = max(
-            updatedExpiration[_id],
-            _id >> (256 - 40)
+        uint256 originalExpires = currentExpires(
+            _id >> (256 - 40),
+            updatedExpiration[_id]
         );
         uint256 _tier = (_id << 40) >> (256 - 40 - 56);
         Tier storage tier = tiers[_tier];
@@ -227,6 +231,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
                     periodDuration;
                 subsToExpire[_tier][originalExpires]--;
                 tiers[_tier].amountOfSubs--;
+                updatedExpiration[_id] = updatedCurrentPeriod;
             }
         }
         ERC20(tier.token).safeTransfer(msg.sender, refund);
@@ -343,6 +348,6 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
     }
 
     function expiration(uint256 id) external view returns (uint256 expires) {
-        expires = max(updatedExpiration[id], id >> (256 - 40));
+        expires = currentExpires(id >> (256 - 40), updatedExpiration[id]);
     }
 }
