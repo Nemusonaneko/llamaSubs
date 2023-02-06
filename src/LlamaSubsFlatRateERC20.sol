@@ -45,7 +45,8 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
     mapping(address => uint256) public whitelist;
 
     event Subscribe(
-        address indexed subscriber,
+        uint256 id,
+        address subscriber,
         uint256 tier,
         uint256 durations,
         uint256 expires,
@@ -58,10 +59,15 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         uint256 expires,
         uint256 sent
     );
-    event Unsubscribe(uint256 id, uint256 refund);
+    event Unsubscribe(
+        uint256 id,
+        uint256 tier,
+        uint256 expires,
+        uint256 refund
+    );
     event Claim(address caller, address to, uint256 amount);
-    event AddTier(uint256 tierNumber, uint224 costPerPeriod);
-    event RemoveTier(uint256 tierNumber);
+    event AddTier(uint256 tierNumber, address token, uint224 costPerPeriod);
+    event RemoveTier(uint256 tierNumber, uint256 disabledAt);
     event AddWhitelist(address toAdd);
     event RemoveWhitelist(address toRemove);
 
@@ -161,7 +167,14 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
             address(this),
             sendToContract
         );
-        emit Subscribe(_subscriber, _tier, _durations, expires, sendToContract);
+        emit Subscribe(
+            id,
+            _subscriber,
+            _tier,
+            _durations,
+            expires,
+            sendToContract
+        );
     }
 
     function extend(uint256 _id, uint256 _durations) external {
@@ -229,8 +242,10 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
                 tiers[_tier].amountOfSubs--;
             }
         }
+        uint256 expires = max(uint256(originalExpires), updatedCurrentPeriod);
+        updatedExpiration[_id] = expires;
         ERC20(tier.token).safeTransfer(msg.sender, refund);
-        emit Unsubscribe(_id, refund);
+        emit Unsubscribe(_id, _tier, expires, refund);
     }
 
     function claim(uint256 _amount, address token) external {
@@ -254,7 +269,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         unchecked {
             numOfTiers++;
         }
-        emit AddTier(tierNumber, _costPerPeriod);
+        emit AddTier(tierNumber, _token, _costPerPeriod);
     }
 
     function addTiersInternal(TierInfo[] calldata _tiers) internal {
@@ -283,7 +298,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         tiers[_tier].disabledAt = uint40(currentPeriod);
         activeTiers[_tierIndex] = last;
         activeTiers.pop();
-        emit RemoveTier(_tier);
+        emit RemoveTier(_tier, currentPeriod);
     }
 
     function removeTiers(uint256[] calldata _tierIndexs) external onlyOwner {

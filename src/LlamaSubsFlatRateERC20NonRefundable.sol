@@ -33,6 +33,7 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
     mapping(address => uint256) public whitelist;
 
     event Subscribe(
+        uint256 id,
         address subscriber,
         uint56 sub,
         address token,
@@ -47,7 +48,12 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
         uint208 cost
     );
     event Claim(address caller, address token, address to, uint256 amount);
-    event AddSub(uint256 subNumber, uint208 costOfSub, uint40 duration, address token);
+    event AddSub(
+        uint256 subNumber,
+        uint208 costOfSub,
+        uint40 duration,
+        address token
+    );
     event RemoveSub(uint256 subNumber);
     event AddWhitelist(address toAdd);
     event RemoveWhitelist(address toRemove);
@@ -57,7 +63,7 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
         _;
     }
 
-    struct SubInfo{
+    struct SubInfo {
         uint208 costOfSub;
         uint40 duration;
         address token;
@@ -92,10 +98,7 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
             );
     }
 
-    function subscribe(
-        address _subscriber,
-        uint56 _sub
-    ) external {
+    function subscribe(address _subscriber, uint56 _sub) external {
         Sub storage sub = subs[_sub];
         if (sub.disabled != 0 || sub.costOfSub == 0 || sub.duration == 0)
             revert INVALID_SUB();
@@ -114,7 +117,14 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
             address(this),
             sub.costOfSub
         );
-        emit Subscribe(_subscriber, _sub, sub.token, expires, sub.costOfSub);
+        emit Subscribe(
+            id,
+            _subscriber,
+            _sub,
+            sub.token,
+            expires,
+            sub.costOfSub
+        );
     }
 
     function extend(uint256 _id) external {
@@ -136,7 +146,11 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
         emit Extend(_id, _sub, sub.token, expires, sub.costOfSub);
     }
 
-    function addSubInternal(uint208 _costOfSub, uint40 _duration, address _token) internal {
+    function addSubInternal(
+        uint208 _costOfSub,
+        uint40 _duration,
+        address _token
+    ) internal {
         subs[numOfSubs] = Sub({
             costOfSub: _costOfSub,
             duration: _duration,
@@ -151,10 +165,14 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
     }
 
     function addSubsInternal(SubInfo[] calldata _subs) internal {
-        uint i = 0;
-        uint len = _subs.length;
-        while(i<len){
-            addSubInternal(_subs[i].costOfSub, _subs[i].duration, _subs[i].token);
+        uint256 i = 0;
+        uint256 len = _subs.length;
+        while (i < len) {
+            addSubInternal(
+                _subs[i].costOfSub,
+                _subs[i].duration,
+                _subs[i].token
+            );
             unchecked {
                 i++;
             }
@@ -173,9 +191,9 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
     }
 
     function removeSubs(uint56[] calldata _subs) external onlyOwner {
-        uint i = 0;
-        uint len = _subs.length;
-        while(i<len){
+        uint256 i = 0;
+        uint256 len = _subs.length;
+        while (i < len) {
             removeSubInternal(_subs[i]);
             unchecked {
                 i++;
