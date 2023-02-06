@@ -247,10 +247,8 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
                 updatedExpiration[_id] = updatedCurrentPeriod;
             }
         }
-        uint256 expires = max(uint256(originalExpires), updatedCurrentPeriod);
-        updatedExpiration[_id] = expires;
         ERC20(tier.token).safeTransfer(msg.sender, refund);
-        emit Unsubscribe(_id, _tier, expires, refund);
+        emit Unsubscribe(_id, _tier, updatedCurrentPeriod, refund);
     }
 
     function claim(uint256 _amount, address token) external {
