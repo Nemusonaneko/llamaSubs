@@ -231,12 +231,14 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         Tier storage tier = tiers[_tier];
         uint256 refund;
         uint256 updatedCurrentPeriod = getUpdatedCurrentPeriod();
+        uint256 expires;
         unchecked {
             if (tier.disabledAt > 0 && originalExpires > tier.disabledAt) {
                 refund =
                     ((uint256(originalExpires) - uint256(tier.disabledAt)) *
                         uint256(tier.costPerPeriod)) /
                     periodDuration;
+                expires = tier.disabledAt;
             } else if (originalExpires > updatedCurrentPeriod) {
                 refund =
                     ((uint256(originalExpires) - updatedCurrentPeriod) *
@@ -245,10 +247,13 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
                 subsToExpire[_tier][originalExpires]--;
                 tiers[_tier].amountOfSubs--;
                 updatedExpiration[_id] = updatedCurrentPeriod;
+                expires = updatedCurrentPeriod;
+            } else {
+                expires = originalExpires;
             }
         }
         ERC20(tier.token).safeTransfer(msg.sender, refund);
-        emit Unsubscribe(_id, _tier, updatedCurrentPeriod, refund);
+        emit Unsubscribe(_id, _tier, expires, refund);
     }
 
     function claim(uint256 _amount, address token) external {
