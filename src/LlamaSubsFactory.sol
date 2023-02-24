@@ -16,11 +16,13 @@ contract LlamaSubsFactory {
         address deployedContract,
         address indexed owner,
         uint256 currentPeriod,
-        uint256 periodDuration
+        uint256 periodDuration,
+        LlamaSubsFlatRateERC20.TierInfo[] tiers
     );
     event DeployFlatRateERC20NonRefundable(
         address deployedContract,
-        address indexed owner
+        address indexed owner,
+        LlamaSubsFlatRateERC20NonRefundable.SubInfo[] subs
     );
 
     constructor(
@@ -31,7 +33,7 @@ contract LlamaSubsFactory {
         refundableImpl = _refundableImpl;
     }
 
-    struct TierInfo{
+    struct TierInfo {
         uint224 costPerPeriod;
         address token;
     }
@@ -39,7 +41,7 @@ contract LlamaSubsFactory {
     function deployFlatRateERC20(
         uint256 _currentPeriod,
         uint256 _periodDuration,
-        LlamaSubsFlatRateERC20.TierInfo[] calldata tiers
+        LlamaSubsFlatRateERC20.TierInfo[] memory tiers
     ) external returns (LlamaSubsFlatRateERC20 deployedContract) {
         deployedContract = LlamaSubsFlatRateERC20(
             address(refundableImpl).clone()
@@ -54,21 +56,22 @@ contract LlamaSubsFactory {
             address(deployedContract),
             msg.sender,
             _currentPeriod,
-            _periodDuration
+            _periodDuration,
+            tiers
         );
     }
 
-    function deployFlatRateERC20NonRefundable(LlamaSubsFlatRateERC20NonRefundable.SubInfo[] calldata subs)
-        external
-        returns (LlamaSubsFlatRateERC20NonRefundable deployedContract)
-    {
+    function deployFlatRateERC20NonRefundable(
+        LlamaSubsFlatRateERC20NonRefundable.SubInfo[] memory subs
+    ) external returns (LlamaSubsFlatRateERC20NonRefundable deployedContract) {
         deployedContract = LlamaSubsFlatRateERC20NonRefundable(
             address(nonrefundableImpl).clone()
         );
         deployedContract.initialize(msg.sender, subs);
         emit DeployFlatRateERC20NonRefundable(
             address(deployedContract),
-            msg.sender
+            msg.sender,
+            subs
         );
     }
 }
