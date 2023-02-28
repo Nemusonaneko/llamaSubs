@@ -129,8 +129,12 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         return a > b ? a : b;
     }
 
-    function currentExpires(uint256 original, uint256 updated) internal pure returns (uint256) {
-        return updated == 0?original:updated;
+    function currentExpires(uint256 original, uint256 updated)
+        internal
+        pure
+        returns (uint256)
+    {
+        return updated == 0 ? original : updated;
     }
 
     function subscribe(
@@ -156,7 +160,9 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
             expires = updatedCurrentPeriod + (actualDurations * periodDuration);
         }
         uint256 id = uint256(
-            bytes32(abi.encodePacked(expires, _tier, _subscriber))
+            bytes32(
+                abi.encodePacked(uint40(expires), uint56(_tier), _subscriber)
+            )
         );
         if (balanceOf[_subscriber][id] != 0) revert SUB_ALREADY_EXISTS();
         unchecked {
@@ -166,6 +172,8 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         uint256 sendToContract = claimableThisPeriod +
             (actualDurations * uint256(tier.costPerPeriod));
         claimable += claimableThisPeriod;
+
+        _mint(_subscriber, id, 1, "");
         ERC20(tier.token).safeTransferFrom(
             msg.sender,
             address(this),

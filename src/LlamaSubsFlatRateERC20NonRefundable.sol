@@ -107,7 +107,9 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
             expires = uint40(block.timestamp + sub.duration);
         }
         uint256 id = uint256(
-            bytes32(abi.encodePacked(expires, _sub, _subscriber))
+            bytes32(
+                abi.encodePacked(uint40(expires), uint56(_sub), _subscriber)
+            )
         );
         if (balanceOf[_subscriber][id] != 0) revert SUB_ALREADY_EXISTS();
 
