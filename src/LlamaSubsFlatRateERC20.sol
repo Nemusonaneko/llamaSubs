@@ -122,6 +122,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
     {
         return
             (block.timestamp + periodDuration) -
+            (block.timestamp % periodDuration) +
             (currentPeriod % periodDuration);
     }
 
