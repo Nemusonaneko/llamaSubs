@@ -195,7 +195,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
             _id >> (256 - 40),
             updatedExpiration[_id]
         );
-        uint256 _tier = (_id << 40) >> (256 - 40 - 56);
+        uint256 _tier = (_id << 40) >> (256 - 56);
         Tier storage tier = tiers[_tier];
         if (tier.disabledAt != 0) revert INVALID_TIER();
         uint256 updatedCurrentPeriod = getUpdatedCurrentPeriod();
@@ -236,7 +236,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
             _id >> (256 - 40),
             updatedExpiration[_id]
         );
-        uint256 _tier = (_id << 40) >> (256 - 40 - 56);
+        uint256 _tier = (_id << 40) >> (256 - 56);
         Tier storage tier = tiers[_tier];
         uint256 refund;
         uint256 updatedCurrentPeriod = getUpdatedCurrentPeriod();
