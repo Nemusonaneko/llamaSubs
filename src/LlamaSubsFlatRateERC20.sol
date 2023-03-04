@@ -105,7 +105,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         return
             string(
                 abi.encodePacked(
-                    "https://nft.llamapay.com/LlamaSubsFlatRateERC20/",
+                    "https://nft.llamapay.io/LlamaSubsFlatRateERC20/",
                     Strings.toString(block.chainid),
                     "/",
                     Strings.toHexString(uint160(address(this)), 20),
