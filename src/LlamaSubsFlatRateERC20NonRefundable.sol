@@ -88,7 +88,7 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
         return
             string(
                 abi.encodePacked(
-                    "https://nft.llamapay.com/LlamaSubsFlatRateERC20NonRefundable/",
+                    "https://nft.llamapay.io/LlamaSubsFlatRateERC20NonRefundable/",
                     Strings.toString(block.chainid),
                     "/",
                     Strings.toHexString(uint160(address(this)), 20),
