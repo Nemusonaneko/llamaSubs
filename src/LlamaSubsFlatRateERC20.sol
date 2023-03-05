@@ -36,13 +36,13 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
     address public owner;
     uint256 public currentPeriod;
     uint256 public periodDuration;
-    uint256 public claimable;
     uint256 public numOfTiers;
     uint256[] public activeTiers;
     mapping(uint256 => Tier) public tiers;
     mapping(uint256 => uint256) public updatedExpiration;
     mapping(uint256 => mapping(uint256 => uint256)) public subsToExpire;
     mapping(address => uint256) public whitelist;
+    mapping(address => uint256) public claimables;
 
     event Subscribe(
         uint256 id,
@@ -105,7 +105,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         return
             string(
                 abi.encodePacked(
-                    "https://nft.llamapay.io/LlamaSubsFlatRateERC20/",
+                    "https://nft.llamapay.com/LlamaSubsFlatRateERC20/",
                     Strings.toString(block.chainid),
                     "/",
                     Strings.toHexString(uint160(address(this)), 20),
@@ -172,7 +172,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         }
         uint256 sendToContract = claimableThisPeriod +
             (actualDurations * uint256(tier.costPerPeriod));
-        claimable += claimableThisPeriod;
+        claimables[tier.token] += claimableThisPeriod;
 
         _mint(_subscriber, id, 1, "");
         ERC20(tier.token).safeTransferFrom(
@@ -221,7 +221,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         }
         uint256 sendToContract = claimableThisPeriod +
             (actualDurations * uint256(tier.costPerPeriod));
-        claimable += claimableThisPeriod;
+        claimables[tier.token] += claimableThisPeriod;
         ERC20(tier.token).safeTransferFrom(
             msg.sender,
             address(this),
@@ -269,7 +269,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         if (msg.sender != owner && whitelist[msg.sender] != 1)
             revert NOT_OWNER_OR_WHITELISTED();
         _update();
-        claimable -= _amount;
+        claimables[token] -= _amount;
         ERC20(token).safeTransfer(owner, (_amount * 99) / 100);
         ERC20(token).safeTransfer(
             0x08a3c2A819E3de7ACa384c798269B3Ce1CD0e437,
@@ -341,10 +341,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
     }
 
     function _update() private {
-        /// This will save gas since u only update storage at the end
         uint256 newCurrentPeriod = currentPeriod;
-        uint256 newClaimable = claimable;
-
         uint256 len = activeTiers.length;
         while (block.timestamp > newCurrentPeriod) {
             uint256 i = 0;
@@ -356,30 +353,52 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
                         subsToExpire[curr][newCurrentPeriod]
                     );
                 }
-                newClaimable +=
+                claimables[tier.token] +=
                     uint256(tier.amountOfSubs) *
                     uint256(tier.costPerPeriod);
-                /// Free up storage
                 delete subsToExpire[curr][newCurrentPeriod];
                 unchecked {
-                    i++;
+                    ++i;
                 }
             }
             unchecked {
-                /// Go to next period
                 newCurrentPeriod += periodDuration;
             }
         }
         currentPeriod = newCurrentPeriod;
-        claimable = newClaimable;
-    }
-    
-    function claimableNow() external view returns (uint256) {
-        _update();
-        return claimable;
     }
 
     function expiration(uint256 id) external view returns (uint256 expires) {
         expires = currentExpires(id >> (256 - 40), updatedExpiration[id]);
+    }
+
+    function claimableNow(address _token)
+        external
+        view
+        returns (uint256 claimable)
+    {
+        uint256 newCurrentPeriod = currentPeriod;
+        uint256 len = activeTiers.length;
+        claimable = claimables[_token];
+        while (block.timestamp > newCurrentPeriod) {
+            uint256 i = 0;
+            while (i < len) {
+                uint256 curr = activeTiers[i];
+                Tier storage tier = tiers[curr];
+                uint256 newAmountOfSubs;
+                unchecked {
+                    newAmountOfSubs =
+                        uint256(tier.amountOfSubs) -
+                        uint256(subsToExpire[curr][newCurrentPeriod]);
+                }
+                claimable += newAmountOfSubs * uint256(tier.costPerPeriod);
+                unchecked {
+                    ++i;
+                }
+            }
+            unchecked {
+                newCurrentPeriod += periodDuration;
+            }
+        }
     }
 }
