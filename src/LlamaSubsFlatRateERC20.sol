@@ -373,6 +373,11 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         currentPeriod = newCurrentPeriod;
         claimable = newClaimable;
     }
+    
+    function claimableNow() external view returns (uint256) {
+        _update();
+        return claimable;
+    }
 
     function expiration(uint256 id) external view returns (uint256 expires) {
         expires = currentExpires(id >> (256 - 40), updatedExpiration[id]);
