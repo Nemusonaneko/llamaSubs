@@ -153,7 +153,6 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         uint256 claimableThisPeriod;
         unchecked {
             actualDurations = _durations - 1;
-            updatedCurrentPeriod + (actualDurations * periodDuration);
             claimableThisPeriod =
                 (tier.costPerPeriod *
                     (updatedCurrentPeriod - block.timestamp)) /
