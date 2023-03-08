@@ -73,7 +73,7 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
         feeCollector = _feeCollector;
     }
 
-    function initialize(address _owner, SubInfo[] calldata _subs) public {
+    function initialize(address _owner, SubInfo[] calldata _subs) public initializer {
         owner = _owner;
         addSubsInternal(_subs);
     }

@@ -80,7 +80,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         uint256 _currentPeriod,
         uint256 _periodDuration,
         TierInfo[] calldata _tiers
-    ) public {
+    ) public initializer {
         owner = _owner;
         currentPeriod = _currentPeriod;
         periodDuration = _periodDuration;
