@@ -65,7 +65,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         uint256 expires,
         uint256 refund
     );
-    event Claim(address caller, address to, uint256 amount);
+    event Claim(address caller, address to, address token, uint256 amount);
     event AddTier(uint256 tierNumber, address token, uint224 costPerPeriod);
     event RemoveTier(uint256 tierNumber, uint256 disabledAt);
     event AddWhitelist(address toAdd);
@@ -274,7 +274,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
             0x08a3c2A819E3de7ACa384c798269B3Ce1CD0e437,
             _amount / 100
         );
-        emit Claim(msg.sender, owner, _amount);
+        emit Claim(msg.sender, owner, token, _amount);
     }
 
     function addTierInternal(uint224 _costPerPeriod, address _token) internal {
