@@ -205,7 +205,8 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         );
     }
 
-    function extend(uint256 _id, uint256 _durations) external {
+    function extend(uint256 _id, uint256 _durations, address _owner) external {
+        if(balanceOf[_owner][_id] == 0) revert SUB_DOES_NOT_EXIST();
         uint256 originalExpires = currentExpires(
             _id >> (256 - 40),
             updatedExpiration[_id]
