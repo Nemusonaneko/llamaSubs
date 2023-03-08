@@ -123,12 +123,15 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
             );
     }
 
+    /* implements this code but in O(1)
+          while (block.timestamp > currentPeriod) currentPeriod += periodDuration
+    */
     function getUpdatedCurrentPeriod()
         public
         view
         returns (uint256 updatedCurrentPeriod)
     {
-        if(currentPeriod>block.timestamp) return currentPeriod;
+        if(currentPeriod>block.timestamp) return currentPeriod; // Most common case for active pools
         // block.timestamp-currentPeriod >= 0 because of previous if-check
         // block.timestamp >= block.timestamp-currentPeriod
         //  -> block.timestamp >= (block.timestamp-currentPeriod)%periodDuration
@@ -165,12 +168,12 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         uint256 actualDurations;
         uint256 claimableThisPeriod;
         unchecked {
-            actualDurations = _durations - 1;
+            actualDurations = _durations - 1; // This can underflow, but it will only affect the event
             claimableThisPeriod =
-                (tier.costPerPeriod *
+                (tier.costPerPeriod * // costPerPeriod is fixed so owner can't frontrun an increase
                     (updatedCurrentPeriod - block.timestamp)) /
                 periodDuration;
-            expires = updatedCurrentPeriod + (actualDurations * periodDuration);
+            expires = updatedCurrentPeriod + (actualDurations * periodDuration); // Can overflow but user would just be rugging themselves (+ need to pay huge sums)
         }
         uint256 id = uint256(
             bytes32(
