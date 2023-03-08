@@ -36,7 +36,6 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
     address public owner;
     uint256 public currentPeriod;
     uint256 public periodDuration;
-    uint256 public numOfTiers;
     uint256[] public activeTiers;
     mapping(uint256 => Tier) public tiers;
     mapping(uint256 => uint256) public updatedExpiration;
@@ -283,13 +282,10 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
     }
 
     function addTierInternal(uint224 _costPerPeriod, address _token) internal {
-        uint256 tierNumber = numOfTiers;
+        uint256 tierNumber = activeTiers.length;
         tiers[tierNumber].costPerPeriod = _costPerPeriod;
         tiers[tierNumber].token = _token;
         activeTiers.push(tierNumber);
-        unchecked {
-            numOfTiers++;
-        }
         emit AddTier(tierNumber, _token, _costPerPeriod);
     }
 

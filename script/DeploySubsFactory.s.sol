@@ -11,8 +11,9 @@ contract DeploySubsFactory is Script {
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
-        LlamaSubsFlatRateERC20 refundable = new LlamaSubsFlatRateERC20();
-        LlamaSubsFlatRateERC20NonRefundable nonrefundable = new LlamaSubsFlatRateERC20NonRefundable();
+        FeeCollector feeCollector = new FeeCollector();
+        LlamaSubsFlatRateERC20 refundable = new LlamaSubsFlatRateERC20(feeCollector);
+        LlamaSubsFlatRateERC20NonRefundable nonrefundable = new LlamaSubsFlatRateERC20NonRefundable(feeCollector);
         LlamaSubsFactory factory = new LlamaSubsFactory(
             nonrefundable,
             refundable
