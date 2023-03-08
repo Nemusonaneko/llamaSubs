@@ -17,6 +17,7 @@ error CURRENT_PERIOD_IN_FUTURE();
 error WRONG_TIER();
 error SUB_ALREADY_EXISTS();
 error SUB_DOES_NOT_EXIST();
+error PERIOD_TOO_HIGH();
 
 contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
     using SafeTransferLib for ERC20;
@@ -84,6 +85,9 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         owner = _owner;
         currentPeriod = _currentPeriod;
         periodDuration = _periodDuration;
+        if(_periodDuration > 1e12){ // 31k years
+            revert PERIOD_TOO_HIGH(); // Prevent insane periods that could cause overflows later on and trap users
+        }
         if (block.timestamp + _periodDuration < _currentPeriod) {
             revert CURRENT_PERIOD_IN_FUTURE();
         }
@@ -124,10 +128,15 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         view
         returns (uint256 updatedCurrentPeriod)
     {
-        return
-            (block.timestamp + periodDuration) -
-            (block.timestamp % periodDuration) +
-            (currentPeriod % periodDuration);
+        if(currentPeriod>block.timestamp) return currentPeriod;
+        // block.timestamp-currentPeriod >= 0 because of previous if-check
+        // block.timestamp >= block.timestamp-currentPeriod
+        //  -> block.timestamp >= (block.timestamp-currentPeriod)%periodDuration
+        //  -> block.timestamp - (block.timestamp-currentPeriod)%periodDuration >= 0
+        // thus there are no possible underflows here
+        uint newCurrent = block.timestamp - (block.timestamp-currentPeriod)%periodDuration;
+        if(newCurrent<block.timestamp) newCurrent+=periodDuration;
+        return newCurrent;
     }
 
     function max(uint256 a, uint256 b) internal pure returns (uint256) {

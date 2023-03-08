@@ -8,9 +8,10 @@ function naive(time, period, currentPeriod){
 }
 
 function constantTime(time, period, currentPeriod){
-    return (time + period) -
-    (time % period) +
-    (currentPeriod % period);
+    if(currentPeriod>time) return currentPeriod
+    let low = time - (time-currentPeriod)%period;
+    if(low<time) low+=period
+    return low
 }
 
 function getRandomInt(min, max) {
@@ -18,8 +19,8 @@ function getRandomInt(min, max) {
 }
 
 function fuzz(){
-    for(let i=0; i<1e3; i++){
-        const [time, period, currentPeriod] = [getRandomInt(0, 500), getRandomInt(0, 500), getRandomInt(0,500)]
+    for(let i=0; i<1e8; i++){
+        const [time, period, currentPeriod] = [getRandomInt(0, 500), getRandomInt(1, 500), getRandomInt(0,500)]
         if(naive(time, period, currentPeriod) !== constantTime(time, period, currentPeriod)){
             console.log(`Rugged with ${[time, period, currentPeriod]}`)
         }
