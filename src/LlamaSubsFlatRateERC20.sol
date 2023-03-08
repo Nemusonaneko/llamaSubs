@@ -43,6 +43,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
     mapping(uint256 => mapping(uint256 => uint256)) public subsToExpire;
     mapping(address => uint256) public whitelist;
     mapping(address => uint256) public claimables;
+    address public immutable feeCollector;
 
     event Subscribe(
         uint256 id,
@@ -70,6 +71,10 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
     event RemoveTier(uint256 tierNumber, uint256 disabledAt);
     event AddWhitelist(address toAdd);
     event RemoveWhitelist(address toRemove);
+
+    constructor(address _feeCollector){
+        feeCollector = _feeCollector;
+    }
 
     function initialize(
         address _owner,
@@ -271,7 +276,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         claimables[token] -= _amount;
         ERC20(token).safeTransfer(owner, (_amount * 99) / 100);
         ERC20(token).safeTransfer(
-            0x08a3c2A819E3de7ACa384c798269B3Ce1CD0e437,
+            feeCollector,
             _amount / 100
         );
         emit Claim(msg.sender, owner, token, _amount);

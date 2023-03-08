@@ -26,7 +26,7 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
 
     address public owner;
     uint256 public numOfSubs;
-    address constant feeCollector = 0x08a3c2A819E3de7ACa384c798269B3Ce1CD0e437;
+    address public immutable feeCollector;
 
     mapping(uint256 => Sub) public subs;
     mapping(uint256 => uint256) public newExpires;
@@ -67,6 +67,10 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
         uint208 costOfSub;
         uint40 duration;
         address token;
+    }
+
+    constructor(address _feeCollector){
+        feeCollector = _feeCollector;
     }
 
     function initialize(address _owner, SubInfo[] calldata _subs) public {
