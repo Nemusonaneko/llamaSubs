@@ -6,14 +6,19 @@ import "forge-std/Script.sol";
 import {LlamaSubsFactory} from "../src/LlamaSubsFactory.sol";
 import {LlamaSubsFlatRateERC20} from "../src/LlamaSubsFlatRateERC20.sol";
 import {LlamaSubsFlatRateERC20NonRefundable} from "../src/LlamaSubsFlatRateERC20NonRefundable.sol";
+import {FeeCollector} from "../src/FeeCollector.sol";
 
 contract DeploySubsFactory is Script {
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
         FeeCollector feeCollector = new FeeCollector();
-        LlamaSubsFlatRateERC20 refundable = new LlamaSubsFlatRateERC20(feeCollector);
-        LlamaSubsFlatRateERC20NonRefundable nonrefundable = new LlamaSubsFlatRateERC20NonRefundable(feeCollector);
+        LlamaSubsFlatRateERC20 refundable = new LlamaSubsFlatRateERC20(
+            address(feeCollector)
+        );
+        LlamaSubsFlatRateERC20NonRefundable nonrefundable = new LlamaSubsFlatRateERC20NonRefundable(
+                address(feeCollector)
+            );
         LlamaSubsFactory factory = new LlamaSubsFactory(
             nonrefundable,
             refundable

@@ -48,8 +48,8 @@ contract LlamaSubsFactory {
         );
         deployedContract.initialize(
             msg.sender,
-            _currentPeriod,
-            _periodDuration,
+            uint128(_currentPeriod),
+            uint128(_periodDuration),
             tiers
         );
         emit DeployFlatRateERC20(
