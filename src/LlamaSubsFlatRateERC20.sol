@@ -15,7 +15,6 @@ error NOT_OWNER();
 error NOT_OWNER_OR_WHITELISTED();
 error CURRENT_PERIOD_IN_FUTURE();
 error WRONG_TIER();
-error SUB_ALREADY_EXISTS();
 error SUB_DOES_NOT_EXIST();
 error PERIOD_TOO_HIGH();
 
@@ -43,6 +42,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
     mapping(uint256 => mapping(uint256 => uint256)) public subsToExpire;
     mapping(address => uint256) public whitelist;
     mapping(address => uint256) public claimables;
+    mapping(address => uint24) public nonces;
     address public immutable feeCollector;
 
     event Subscribe(
@@ -177,10 +177,9 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         }
         uint256 id = uint256(
             bytes32(
-                abi.encodePacked(uint40(expires), uint56(_tier), _subscriber)
+                abi.encodePacked(uint40(expires), uint32(_tier), nonces[_subscriber]++, _subscriber) // Nonce makes it impossible to create 2 subs with same id
             )
         );
-        if (balanceOf[_subscriber][id] != 0) revert SUB_ALREADY_EXISTS();
         unchecked {
             subsToExpire[_tier][expires]++;
             tier.amountOfSubs++;
@@ -211,7 +210,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
             _id >> (256 - 40),
             updatedExpiration[_id]
         );
-        uint256 _tier = (_id << 40) >> (256 - 56);
+        uint256 _tier = (_id << 40) >> (256 - 32);
         Tier storage tier = tiers[_tier];
         if (tier.disabledAt != 0) revert INVALID_TIER();
         uint256 updatedCurrentPeriod = getUpdatedCurrentPeriod();
@@ -252,7 +251,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
             _id >> (256 - 40),
             updatedExpiration[_id]
         );
-        uint256 _tier = (_id << 40) >> (256 - 56);
+        uint256 _tier = (_id << 40) >> (256 - 32);
         Tier storage tier = tiers[_tier];
         uint256 refund;
         uint256 updatedCurrentPeriod = getUpdatedCurrentPeriod();
