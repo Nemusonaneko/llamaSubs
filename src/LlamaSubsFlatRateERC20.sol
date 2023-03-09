@@ -34,8 +34,8 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
     }
 
     address public owner;
-    uint256 public currentPeriod;
-    uint256 public periodDuration;
+    uint128 public currentPeriod;
+    uint128 public periodDuration;
     uint256[] public activeTiers;
     mapping(uint256 => Tier) public tiers;
     mapping(uint256 => uint256) public updatedExpiration;
@@ -78,8 +78,8 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
 
     function initialize(
         address _owner,
-        uint256 _currentPeriod,
-        uint256 _periodDuration,
+        uint128 _currentPeriod,
+        uint128 _periodDuration,
         TierInfo[] calldata _tiers
     ) public initializer {
         owner = _owner;
@@ -88,7 +88,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         if(_periodDuration > 1e12){ // 31k years
             revert PERIOD_TOO_HIGH(); // Prevent insane periods that could cause overflows later on and trap users
         }
-        if (block.timestamp + _periodDuration < _currentPeriod) {
+        if (block.timestamp + uint256(_periodDuration) < uint256(_currentPeriod)) {
             revert CURRENT_PERIOD_IN_FUTURE();
         }
         addTiersInternal(_tiers);
@@ -137,7 +137,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         //  -> block.timestamp >= (block.timestamp-currentPeriod)%periodDuration
         //  -> block.timestamp - (block.timestamp-currentPeriod)%periodDuration >= 0
         // thus there are no possible underflows here
-        uint newCurrent = block.timestamp - (block.timestamp-currentPeriod)%periodDuration;
+        uint newCurrent = block.timestamp - (block.timestamp-uint256(currentPeriod))%periodDuration;
         if(newCurrent<block.timestamp) newCurrent+=periodDuration;
         return newCurrent;
     }
@@ -353,7 +353,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
     }
 
     function _update() private {
-        uint256 newCurrentPeriod = currentPeriod;
+        uint128 newCurrentPeriod = currentPeriod;
         uint256 len = activeTiers.length;
         while (block.timestamp > newCurrentPeriod) {
             uint256 i = 0;
@@ -389,7 +389,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         view
         returns (uint256 claimable)
     {
-        uint256 newCurrentPeriod = currentPeriod;
+        uint128 newCurrentPeriod = currentPeriod;
         uint256 len = activeTiers.length;
         claimable = claimables[_token];
         while (block.timestamp > newCurrentPeriod) {
