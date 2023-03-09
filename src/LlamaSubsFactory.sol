@@ -15,8 +15,8 @@ contract LlamaSubsFactory {
     event DeployFlatRateERC20(
         address deployedContract,
         address indexed owner,
-        uint256 currentPeriod,
-        uint256 periodDuration,
+        uint128 currentPeriod,
+        uint128 periodDuration,
         LlamaSubsFlatRateERC20.TierInfo[] tiers
     );
     event DeployFlatRateERC20NonRefundable(
@@ -39,8 +39,8 @@ contract LlamaSubsFactory {
     }
 
     function deployFlatRateERC20(
-        uint256 _currentPeriod,
-        uint256 _periodDuration,
+        uint128 _currentPeriod,
+        uint128 _periodDuration,
         LlamaSubsFlatRateERC20.TierInfo[] memory tiers
     ) external returns (LlamaSubsFlatRateERC20 deployedContract) {
         deployedContract = LlamaSubsFlatRateERC20(
@@ -48,8 +48,8 @@ contract LlamaSubsFactory {
         );
         deployedContract.initialize(
             msg.sender,
-            uint128(_currentPeriod),
-            uint128(_periodDuration),
+            _currentPeriod,
+            _periodDuration,
             tiers
         );
         emit DeployFlatRateERC20(
