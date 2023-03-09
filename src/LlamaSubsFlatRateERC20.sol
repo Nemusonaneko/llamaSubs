@@ -220,9 +220,9 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         unchecked {
             actualDurations = _durations - 1;
             expires =
-                max(uint256(originalExpires), updatedCurrentPeriod) +
+                max(originalExpires, updatedCurrentPeriod) +
                 (actualDurations * periodDuration);
-            if (originalExpires >= currentPeriod) {
+            if (originalExpires >= currentPeriod) { // Using currentPeriod instead of updatedCurrentPeriod purposefully
                 subsToExpire[_tier][originalExpires]--;
             }
             if (originalExpires < updatedCurrentPeriod) {
@@ -269,7 +269,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
                         uint256(tier.costPerPeriod)) /
                     periodDuration;
                 subsToExpire[_tier][originalExpires]--;
-                tiers[_tier].amountOfSubs--;
+                subsToExpire[_tier][updatedCurrentPeriod]++;
                 updatedExpiration[_id] = updatedCurrentPeriod;
                 expires = updatedCurrentPeriod;
             } else {
