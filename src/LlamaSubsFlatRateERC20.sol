@@ -262,6 +262,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
                     ((uint256(originalExpires) - uint256(tier.disabledAt)) *
                         uint256(tier.costPerPeriod)) /
                     periodDuration;
+                updatedExpiration[_id] = uint256(tier.disabledAt);
                 expires = tier.disabledAt;
             } else if (originalExpires > updatedCurrentPeriod) {
                 refund =
