@@ -22,21 +22,22 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
     using SafeTransferLib for ERC20;
 
     struct Tier {
-        uint224 costPerPeriod;
+        uint216 costPerPeriod;
+        uint40 lastUpdated;
         uint88 amountOfSubs;
-        uint40 disabledAt;
+        bool disabled;
         address token;
     }
 
     struct TierInfo {
-        uint224 costPerPeriod;
+        uint216 costPerPeriod;
         address token;
     }
 
     address public owner;
     uint128 public currentPeriod;
     uint128 public periodDuration;
-    uint256[] public activeTiers;
+    uint256 public tierNumber;
     mapping(uint256 => Tier) public tiers;
     mapping(uint256 => uint256) public updatedExpiration;
     mapping(uint256 => mapping(uint256 => uint256)) public subsToExpire;
@@ -67,12 +68,12 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         uint256 refund
     );
     event Claim(address caller, address to, address token, uint256 amount);
-    event AddTier(uint256 tierNumber, address token, uint224 costPerPeriod);
-    event RemoveTier(uint256 tierNumber, uint256 disabledAt);
+    event AddTier(uint256 tierNumber, address token, uint216 costPerPeriod);
+    event RemoveTier(uint256 tierNumber);
     event AddWhitelist(address toAdd);
     event RemoveWhitelist(address toRemove);
 
-    constructor(address _feeCollector){
+    constructor(address _feeCollector) {
         feeCollector = _feeCollector;
     }
 
@@ -85,10 +86,13 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         owner = _owner;
         currentPeriod = _currentPeriod;
         periodDuration = _periodDuration;
-        if(_periodDuration > 1e12){ // 31k years
+        if (_periodDuration > 1e12) {
+            // 31k years
             revert PERIOD_TOO_HIGH(); // Prevent insane periods that could cause overflows later on and trap users
         }
-        if (block.timestamp + uint256(_periodDuration) < uint256(_currentPeriod)) {
+        if (
+            block.timestamp + uint256(_periodDuration) < uint256(_currentPeriod)
+        ) {
             revert CURRENT_PERIOD_IN_FUTURE();
         }
         addTiersInternal(_tiers);
@@ -103,13 +107,9 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         owner = _newOwner;
     }
 
-    function uri(uint256 id)
-        public
-        view
-        virtual
-        override
-        returns (string memory)
-    {
+    function uri(
+        uint256 id
+    ) public view virtual override returns (string memory) {
         return
             string(
                 abi.encodePacked(
@@ -131,14 +131,15 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         view
         returns (uint256 updatedCurrentPeriod)
     {
-        if(currentPeriod>block.timestamp) return currentPeriod; // Most common case for active pools
+        if (currentPeriod > block.timestamp) return currentPeriod; // Most common case for active pools
         // block.timestamp-currentPeriod >= 0 because of previous if-check
         // block.timestamp >= block.timestamp-currentPeriod
         //  -> block.timestamp >= (block.timestamp-currentPeriod)%periodDuration
         //  -> block.timestamp - (block.timestamp-currentPeriod)%periodDuration >= 0
         // thus there are no possible underflows here
-        uint newCurrent = block.timestamp - (block.timestamp-uint256(currentPeriod))%periodDuration;
-        if(newCurrent<block.timestamp) newCurrent+=periodDuration;
+        uint newCurrent = block.timestamp -
+            ((block.timestamp - uint256(currentPeriod)) % periodDuration);
+        if (newCurrent < block.timestamp) newCurrent += periodDuration;
         return newCurrent;
     }
 
@@ -146,11 +147,10 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         return a > b ? a : b;
     }
 
-    function currentExpires(uint256 original, uint256 updated)
-        internal
-        pure
-        returns (uint256)
-    {
+    function currentExpires(
+        uint256 original,
+        uint256 updated
+    ) internal pure returns (uint256) {
         return updated == 0 ? original : updated;
     }
 
@@ -160,7 +160,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         uint256 _durations
     ) external {
         Tier storage tier = tiers[_tier];
-        if (tier.disabledAt > 0 || tier.costPerPeriod == 0)
+        if (tier.disabled == true || tier.costPerPeriod == 0)
             revert INVALID_TIER();
 
         uint256 updatedCurrentPeriod = getUpdatedCurrentPeriod();
@@ -177,7 +177,12 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         }
         uint256 id = uint256(
             bytes32(
-                abi.encodePacked(uint40(expires), uint32(_tier), nonces[_subscriber]++, _subscriber) // Nonce makes it impossible to create 2 subs with same id
+                abi.encodePacked(
+                    uint40(expires),
+                    uint32(_tier),
+                    nonces[_subscriber]++,
+                    _subscriber
+                ) // Nonce makes it impossible to create 2 subs with same id
             )
         );
         unchecked {
@@ -205,14 +210,14 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
     }
 
     function extend(uint256 _id, uint256 _durations, address _owner) external {
-        if(balanceOf[_owner][_id] == 0) revert SUB_DOES_NOT_EXIST();
+        if (balanceOf[_owner][_id] == 0) revert SUB_DOES_NOT_EXIST();
         uint256 originalExpires = currentExpires(
             _id >> (256 - 40),
             updatedExpiration[_id]
         );
         uint256 _tier = (_id << 40) >> (256 - 32);
         Tier storage tier = tiers[_tier];
-        if (tier.disabledAt != 0) revert INVALID_TIER();
+        if (tier.disabled == true) revert INVALID_TIER();
         uint256 updatedCurrentPeriod = getUpdatedCurrentPeriod();
         uint256 actualDurations;
         uint256 claimableThisPeriod;
@@ -222,7 +227,8 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
             expires =
                 max(originalExpires, updatedCurrentPeriod) +
                 (actualDurations * periodDuration);
-            if (originalExpires >= currentPeriod) { // Using currentPeriod instead of updatedCurrentPeriod purposefully
+            if (originalExpires >= currentPeriod) {
+                // Using currentPeriod instead of updatedCurrentPeriod purposefully
                 subsToExpire[_tier][originalExpires]--;
             }
             if (originalExpires < updatedCurrentPeriod) {
@@ -257,14 +263,7 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         uint256 updatedCurrentPeriod = getUpdatedCurrentPeriod();
         uint256 expires;
         unchecked {
-            if (tier.disabledAt > 0 && originalExpires > tier.disabledAt) {
-                refund =
-                    ((uint256(originalExpires) - uint256(tier.disabledAt)) *
-                        uint256(tier.costPerPeriod)) /
-                    periodDuration;
-                updatedExpiration[_id] = uint256(tier.disabledAt);
-                expires = tier.disabledAt;
-            } else if (originalExpires > updatedCurrentPeriod) {
+            if (originalExpires > updatedCurrentPeriod) {
                 refund =
                     ((uint256(originalExpires) - updatedCurrentPeriod) *
                         uint256(tier.costPerPeriod)) /
@@ -281,25 +280,28 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         emit Unsubscribe(_id, _tier, expires, refund);
     }
 
-    function claim(uint256 _amount, address token) external {
+    function claim(
+        uint256 _amount,
+        address token,
+        uint256[] calldata _tiers
+    ) external {
         if (msg.sender != owner && whitelist[msg.sender] != 1)
             revert NOT_OWNER_OR_WHITELISTED();
-        _update();
+        _update(_tiers);
         claimables[token] -= _amount;
         ERC20(token).safeTransfer(owner, (_amount * 99) / 100);
-        ERC20(token).safeTransfer(
-            feeCollector,
-            _amount / 100
-        );
+        ERC20(token).safeTransfer(feeCollector, _amount / 100);
         emit Claim(msg.sender, owner, token, _amount);
     }
 
-    function addTierInternal(uint224 _costPerPeriod, address _token) internal {
-        uint256 tierNumber = activeTiers.length;
-        tiers[tierNumber].costPerPeriod = _costPerPeriod;
-        tiers[tierNumber].token = _token;
-        activeTiers.push(tierNumber);
-        emit AddTier(tierNumber, _token, _costPerPeriod);
+    function addTierInternal(uint216 _costPerPeriod, address _token) internal {
+        uint256 tierNum = tierNumber;
+        tiers[tierNum].costPerPeriod = _costPerPeriod;
+        tiers[tierNum].token = _token;
+        unchecked {
+            ++tierNumber;
+        }
+        emit AddTier(tierNum, _token, _costPerPeriod);
     }
 
     function addTiersInternal(TierInfo[] calldata _tiers) internal {
@@ -308,37 +310,27 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         while (i < len) {
             addTierInternal(_tiers[i].costPerPeriod, _tiers[i].token);
             unchecked {
-                i++;
+                ++i;
             }
         }
     }
 
     function addTiers(TierInfo[] calldata _tiers) external onlyOwner {
-        _update();
         addTiersInternal(_tiers);
     }
 
-    function removeTierInternal(uint256 _tierIndex) internal {
-        uint256 len = activeTiers.length;
-        if (_tierIndex >= len) {
-            revert WRONG_TIER();
-        }
-        uint256 _tier = activeTiers[_tierIndex];
-        uint256 last = activeTiers[len - 1];
-        tiers[_tier].disabledAt = uint40(currentPeriod);
-        activeTiers[_tierIndex] = last;
-        activeTiers.pop();
-        emit RemoveTier(_tier, currentPeriod);
+    function removeTierInternal(uint256 _tierNumber) internal {
+        tiers[_tierNumber].disabled = true;
+        emit RemoveTier(_tierNumber);
     }
 
     function removeTiers(uint256[] calldata _tierIndexs) external onlyOwner {
-        _update();
         uint256 i = 0;
         uint256 len = _tierIndexs.length;
         while (i < len) {
             removeTierInternal(_tierIndexs[i]);
             unchecked {
-                i++;
+                ++i;
             }
         }
     }
@@ -353,13 +345,13 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         emit RemoveWhitelist(_toRemove);
     }
 
-    function _update() private {
+    function _update(uint256[] calldata _tiersToUpdate) private {
         uint128 newCurrentPeriod = currentPeriod;
-        uint256 len = activeTiers.length;
+        uint256 len = _tiersToUpdate.length;
         while (block.timestamp > newCurrentPeriod) {
             uint256 i = 0;
             while (i < len) {
-                uint256 curr = activeTiers[i];
+                uint256 curr = _tiersToUpdate[i];
                 Tier storage tier = tiers[curr];
                 unchecked {
                     tier.amountOfSubs -= uint88(
@@ -385,18 +377,17 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         expires = currentExpires(id >> (256 - 40), updatedExpiration[id]);
     }
 
-    function claimableNow(address _token)
-        external
-        view
-        returns (uint256 claimable)
-    {
+    function claimableNow(
+        address _token,
+        uint256[] calldata _tiers
+    ) external view returns (uint256 claimable) {
         uint128 newCurrentPeriod = currentPeriod;
-        uint256 len = activeTiers.length;
+        uint256 len = _tiers.length;
         claimable = claimables[_token];
         while (block.timestamp > newCurrentPeriod) {
             uint256 i = 0;
             while (i < len) {
-                uint256 curr = activeTiers[i];
+                uint256 curr = _tiers[i];
                 Tier storage tier = tiers[curr];
                 uint256 newAmountOfSubs;
                 unchecked {
