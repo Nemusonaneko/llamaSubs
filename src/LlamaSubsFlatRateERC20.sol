@@ -346,63 +346,63 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
     }
 
     function _update(uint256[] calldata _tiersToUpdate) private {
-        uint128 newCurrentPeriod = currentPeriod;
         uint256 len = _tiersToUpdate.length;
-        while (block.timestamp > newCurrentPeriod) {
-            uint256 i = 0;
-            while (i < len) {
-                uint256 curr = _tiersToUpdate[i];
-                Tier storage tier = tiers[curr];
+        uint256 i = 0;
+        while (i < len) {
+            uint256 curr = _tiersToUpdate[i];
+            Tier storage tier = tiers[curr];
+            uint40 newLastUpdate = tier.lastUpdated;
+            while (block.timestamp > newLastUpdate) {
                 unchecked {
-                    tier.amountOfSubs -= uint88(
-                        subsToExpire[curr][newCurrentPeriod]
+                    tiers[curr].amountOfSubs -= uint88(
+                        subsToExpire[curr][newLastUpdate]
                     );
+                    delete subsToExpire[curr][newLastUpdate];
+                    newLastUpdate += uint40(periodDuration);
                 }
                 claimables[tier.token] +=
                     uint256(tier.amountOfSubs) *
                     uint256(tier.costPerPeriod);
-                delete subsToExpire[curr][newCurrentPeriod];
-                unchecked {
-                    ++i;
-                }
             }
+
+            tiers[curr].lastUpdated = newLastUpdate;
             unchecked {
-                newCurrentPeriod += periodDuration;
+                ++i;
             }
         }
-        currentPeriod = newCurrentPeriod;
     }
 
     function expiration(uint256 id) external view returns (uint256 expires) {
         expires = currentExpires(id >> (256 - 40), updatedExpiration[id]);
     }
 
-    function claimableNow(
-        address _token,
-        uint256[] calldata _tiers
-    ) external view returns (uint256 claimable) {
-        uint128 newCurrentPeriod = currentPeriod;
-        uint256 len = _tiers.length;
-        claimable = claimables[_token];
-        while (block.timestamp > newCurrentPeriod) {
-            uint256 i = 0;
-            while (i < len) {
-                uint256 curr = _tiers[i];
-                Tier storage tier = tiers[curr];
-                uint256 newAmountOfSubs;
-                unchecked {
-                    newAmountOfSubs =
-                        uint256(tier.amountOfSubs) -
-                        uint256(subsToExpire[curr][newCurrentPeriod]);
-                }
-                claimable += newAmountOfSubs * uint256(tier.costPerPeriod);
-                unchecked {
-                    ++i;
-                }
-            }
-            unchecked {
-                newCurrentPeriod += periodDuration;
-            }
-        }
-    }
+    // TODO: FIX
+    // function claimableNow(
+    //     address _token,
+    //     uint256[] calldata _tiers
+    // ) external view returns (uint256 claimable) {
+    //     uint128 newCurrentPeriod = currentPeriod;
+    //     uint256 len = _tiers.length;
+    //     claimable = claimables[_token];
+    //     while (block.timestamp > newCurrentPeriod) {
+    //         uint256 i = 0;
+    //         while (i < len) {
+    //             uint256 curr = _tiers[i];
+    //             Tier storage tier = tiers[curr];
+    //             uint256 newAmountOfSubs;
+    //             unchecked {
+    //                 newAmountOfSubs =
+    //                     uint256(tier.amountOfSubs) -
+    //                     uint256(subsToExpire[curr][newCurrentPeriod]);
+    //             }
+    //             claimable += newAmountOfSubs * uint256(tier.costPerPeriod);
+    //             unchecked {
+    //                 ++i;
+    //             }
+    //         }
+    //         unchecked {
+    //             newCurrentPeriod += periodDuration;
+    //         }
+    //     }
+    // }
 }
