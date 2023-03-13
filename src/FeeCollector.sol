@@ -14,7 +14,11 @@ contract FeeCollector is Ownable {
         to.sendValue(amount);
     }
 
-    function collectTokens(uint amount, address token, address to) external onlyOwner {
+    function collectTokens(
+        uint amount,
+        address token,
+        address to
+    ) external onlyOwner {
         ERC20(token).safeTransfer(to, amount);
     }
 
