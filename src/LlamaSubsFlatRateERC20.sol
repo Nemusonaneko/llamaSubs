@@ -376,33 +376,34 @@ contract LlamaSubsFlatRateERC20 is ERC1155, Initializable {
         expires = currentExpires(id >> (256 - 40), updatedExpiration[id]);
     }
 
-    // TODO: FIX
-    // function claimableNow(
-    //     address _token,
-    //     uint256[] calldata _tiers
-    // ) external view returns (uint256 claimable) {
-    //     uint128 newCurrentPeriod = currentPeriod;
-    //     uint256 len = _tiers.length;
-    //     claimable = claimables[_token];
-    //     while (block.timestamp > newCurrentPeriod) {
-    //         uint256 i = 0;
-    //         while (i < len) {
-    //             uint256 curr = _tiers[i];
-    //             Tier storage tier = tiers[curr];
-    //             uint256 newAmountOfSubs;
-    //             unchecked {
-    //                 newAmountOfSubs =
-    //                     uint256(tier.amountOfSubs) -
-    //                     uint256(subsToExpire[curr][newCurrentPeriod]);
-    //             }
-    //             claimable += newAmountOfSubs * uint256(tier.costPerPeriod);
-    //             unchecked {
-    //                 ++i;
-    //             }
-    //         }
-    //         unchecked {
-    //             newCurrentPeriod += periodDuration;
-    //         }
-    //     }
-    // }
+    function claimableNow(
+        address _token,
+        uint256[] calldata _tiers
+    ) external view returns (uint256 claimable) {
+        uint128 newCurrentPeriod = currentPeriod;
+        uint256 len = _tiers.length;
+        claimable = claimables[_token];
+        while (block.timestamp > newCurrentPeriod) {
+            uint256 i = 0;
+            while (i < len) {
+                uint256 curr = _tiers[i];
+                Tier storage tier = tiers[curr];
+                uint256 newAmountOfSubs;
+                unchecked {
+                    newAmountOfSubs =
+                        uint256(tier.amountOfSubs) -
+                        uint256(subsToExpire[curr][newCurrentPeriod]);
+                }
+                if (tier.token == _token) {
+                    claimable += newAmountOfSubs * uint256(tier.costPerPeriod);
+                }
+                unchecked {
+                    ++i;
+                }
+            }
+            unchecked {
+                newCurrentPeriod += periodDuration;
+            }
+        }
+    }
 }
