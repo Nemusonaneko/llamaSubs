@@ -179,7 +179,7 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
                 _subs[i].token
             );
             unchecked {
-                i++;
+                ++i;
             }
         }
     }
@@ -201,7 +201,7 @@ contract LlamaSubsFlatRateERC20NonRefundable is ERC1155, Initializable {
         while (i < len) {
             removeSubInternal(_subs[i]);
             unchecked {
-                i++;
+                ++i;
             }
         }
     }
